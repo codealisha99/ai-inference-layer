@@ -25,6 +25,7 @@ testpaths = ["tests"]
 
 [project.scripts]
 ai-inference-server = "src.server:main"
+ais = "src.cli:main"
 
 [tool.coverage.run]
 source = ["src"]
