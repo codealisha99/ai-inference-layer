@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inference — A small model registry and inference API</title>
+  <meta name="description" content="A small model registry and inference API with deterministic engines, bounded memory and one response envelope. Built with FastAPI, mirrored in TypeScript, Go and Rust.">
+  <meta name="theme-color" content="#fbfbf8">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400..700&family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <!-- ===== Header + menu ===== -->
+  <header class="site-header" id="site-header">
+    <a class="brand" href="#top" aria-label="Inference, home">
+      Inference
+      <svg class="needle" viewBox="0 0 24 32" aria-hidden="true"><path d="M12 1 L22 31 L12 24 L2 31 Z" /></svg>
+    </a>
+    <button class="menu-btn" id="menu-btn" type="button" aria-expanded="false" aria-controls="menu">
+      <span class="bars" aria-hidden="true"><i></i><i></i></span>
+      <span class="menu-label">Menu</span>
+    </button>
+  </header>
+
+  <nav class="menu" id="menu" aria-label="Main" hidden>
+    <ul>
+      <li><a href="#top"><small>01</small>Overview</a></li>
+      <li><a href="#engines"><small>02</small>Engines</a></li>
+      <li><a href="#capabilities"><small>03</small>Capabilities</a></li>
+      <li><a href="#quickstart"><small>04</small>Quickstart</a></li>
+      <li><a href="#playground"><small>05</small>Try it live</a></li>
+      <li><a href="/docs"><small>06</small>API reference</a></li>
+    </ul>
+    <p class="menu-foot"><span class="status-dot" data-status-dot></span><span data-status-text>Checking server…</span></p>
+  </nav>
+
+  <main id="main">
+    <!-- ===== Hero ===== -->
+    <section class="hero" id="top">
+      <div class="wrap">
+        <div class="hero-meta">
+          <span>Model registry and inference API</span>
+          <span>FastAPI, Python 3.12<span data-version></span></span>
+        </div>
+        <h1 class="display">Inference, drawn as a small, honest API.</h1>
+        <p class="lede">Register a model, send it text, read back a result. Deterministic engines, bounded memory and one response envelope, in four languages.</p>
+        <div class="cta-row">
+          <a class="btn btn-solid" href="#playground">Try it live</a>
+          <a class="btn btn-ghost" href="/docs">Read the API</a>
+        </div>
+
+        <figure class="blueprint" id="blueprint" aria-label="Diagram of a request travelling from client through the server to an engine">
+          <div class="dim dim-h" aria-hidden="true"><i class="tick"></i><b></b><em>POST /models/{id}/infer</em><b></b><i class="tick"></i></div>
+          <div class="plan-row">
+            <div class="plan">
+              <svg viewBox="0 0 1000 560" role="img" aria-label="Client sends a request to the FastAPI server, which routes it to one of three engines, backed by a bounded store">
+                <g class="draw-group" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect class="draw" data-s="0" data-e=".25" x="40" y="200" width="180" height="160" rx="18" pathLength="1"/>
+                  <path class="draw" data-s=".18" data-e=".4" d="M220 280 H380" pathLength="1"/>
+                  <path class="draw" data-s=".25" data-e=".6" d="M380 460 V220 A120 120 0 0 1 620 220 V460 Z" pathLength="1"/>
+                  <path class="draw" data-s=".5" data-e=".7" d="M620 280 H700 M700 150 V410 M700 150 H780 M700 280 H780 M700 410 H780" pathLength="1"/>
+                  <rect class="draw" data-s=".6" data-e=".8" x="780" y="100" width="190" height="100" rx="14" pathLength="1"/>
+                  <rect class="draw" data-s=".68" data-e=".88" x="780" y="230" width="190" height="100" rx="14" pathLength="1"/>
+                  <rect class="draw" data-s=".76" data-e=".96" x="780" y="360" width="190" height="100" rx="14" pathLength="1"/>
+                  <rect class="draw" data-s=".7" data-e="1" x="380" y="490" width="240" height="46" rx="23" pathLength="1"/>
+                </g>
+                <g class="labels" font-family="Familjen Grotesk, sans-serif" fill="currentColor">
+                  <g class="fade" data-s=".1" data-e=".3"><text x="130" y="272" text-anchor="middle" font-size="26" font-weight="500">Client</text><text x="130" y="304" text-anchor="middle" font-size="17" opacity=".6">curl, fetch, SDK</text></g>
+                  <g class="fade" data-s=".45" data-e=".65"><text x="500" y="300" text-anchor="middle" font-size="26" font-weight="500">FastAPI</text><text x="500" y="332" text-anchor="middle" font-size="17" opacity=".6">validate, route</text><text x="500" y="420" text-anchor="middle" font-size="15" opacity=".6" font-style="italic">x-request-id</text></g>
+                  <g class="fade" data-s=".7" data-e=".9"><text x="875" y="157" text-anchor="middle" font-size="20" font-weight="500">text-generation</text><text x="875" y="187" text-anchor="middle" font-size="15" opacity=".6">text</text>
+                    <text x="875" y="287" text-anchor="middle" font-size="20" font-weight="500">text-classification</text><text x="875" y="317" text-anchor="middle" font-size="15" opacity=".6">label, score</text>
+                    <text x="875" y="417" text-anchor="middle" font-size="20" font-weight="500">embedding</text><text x="875" y="447" text-anchor="middle" font-size="15" opacity=".6">vector</text></g>
+                  <g class="fade" data-s=".85" data-e="1"><text x="500" y="520" text-anchor="middle" font-size="17" font-weight="500">InferenceStore, bounded</text></g>
+                </g>
+              </svg>
+            </div>
+            <div class="dim dim-v" aria-hidden="true"><i class="tick"></i><b></b><em>201</em><b></b><i class="tick"></i></div>
+          </div>
+          <figcaption class="plan-caption"><span>Request flow <i>1:50</i></span><span class="scroll-hint" data-scroll-hint>Scroll to finish</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ===== Built with ===== -->
+    <section class="built" aria-label="Built with">
+      <div class="wrap built-inner">
+        <p class="eyebrow">Built with</p>
+        <ul class="built-list">
+          <li>FastAPI</li><li>Uvicorn</li><li>Starlette</li><li>pytest</li><li>Ruff</li><li>uv</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===== Intro ===== -->
+    <section class="section intro">
+      <div class="wrap intro-grid">
+        <figure class="portrait reveal" aria-label="Illustration of a response envelope">
+          <svg viewBox="0 0 600 720" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e5dccb"/><stop offset="1" stop-color="#d8cbb2"/></linearGradient></defs>
+            <rect width="600" height="720" fill="url(#g1)"/>
+            <circle cx="470" cy="150" r="52" fill="#efe4c8"/>
+            <rect x="70" y="120" width="190" height="10" rx="5" fill="#b8ab8e"/>
+            <rect x="70" y="150" width="110" height="10" rx="5" fill="#b8ab8e"/>
+            <rect x="90" y="250" width="420" height="380" rx="22" fill="#1d201e"/>
+            <circle cx="125" cy="284" r="7" fill="#94321f"/><circle cx="150" cy="284" r="7" fill="#c8b98f"/><circle cx="175" cy="284" r="7" fill="#8a9a7b"/>
+            <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24" fill="#ece9de">
+              <text x="125" y="350">{</text>
+              <text x="155" y="392"><tspan fill="#c8b98f">"success"</tspan>: <tspan fill="#9bb38c">true</tspan>,</text>
+              <text x="155" y="434"><tspan fill="#c8b98f">"data"</tspan>: { … },</text>
+              <text x="155" y="476"><tspan fill="#c8b98f">"error"</tspan>: <tspan fill="#d98873">null</tspan></text>
+              <text x="125" y="518">}</text>
+            </g>
+          </svg>
+        </figure>
+        <div class="intro-copy reveal">
+          <blockquote class="pull">“Every response has the same three fields, so every client can be written once.”</blockquote>
+          <h2 class="h2">A small surface, kept deliberately honest.</h2>
+          <p class="body">Inference is a model registry and inference API for the cases where a full serving stack is overkill. Create a model, run inputs through it and read the history back. Engines are pure functions, so identical requests always return identical results.</p>
+          <dl class="stats">
+            <div><dt>endpoints</dt><dd>11</dd></div>
+            <div><dt>model types</dt><dd data-count="3">3</dd></div>
+            <div><dt>implementations</dt><dd data-count="4">4</dd></div>
+          </dl>
+          <a class="link-arrow" href="#capabilities">Meet the endpoints <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Engines ===== -->
+    <section class="section engines" id="engines" aria-label="Engines">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <div>
+            <p class="eyebrow">Engines</p>
+            <h2 class="h2 big">Three engines, each one a pure function.</h2>
+          </div>
+          <div class="section-aside">
+            <p class="body">Same input, same output, every time. Swap in a real backend later without changing a single response shape.</p>
+            <a class="link-arrow" href="/docs#/default/create_model_models_post">All 3 model types <span aria-hidden="true">→</span></a>
+          </div>
+        </header>
+
+        <div class="engine-grid">
+          <article class="engine reveal">
+            <div class="art art-gen" aria-hidden="true">
+              <svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#e5dccb"/><g fill="#1d201e"><rect x="50" y="70" width="240" height="12" rx="6"/><rect x="50" y="102" width="300" height="12" rx="6" opacity=".7"/><rect x="50" y="134" width="190" height="12" rx="6" opacity=".5"/><rect x="50" y="166" width="260" height="12" rx="6" opacity=".35"/></g><rect x="250" y="196" width="10" height="34" fill="#94321f"/></svg>
+            </div>
+            <div class="engine-meta"><h3 class="h3">text-generation</h3><span>config: maxChars</span></div>
+            <p class="body sm">Returns generated text for any input, optionally truncated to <code>maxChars</code>.</p>
+            <pre class="code" tabindex="0"><span class="c-mut">input</span>  Explain tokenization
+<span class="c-mut">output</span> {"text": "Generated response for: Explain tokenization"}</pre>
+          </article>
+
+          <article class="engine reveal">
+            <div class="art art-cls" aria-hidden="true">
+              <svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#d9ddd0"/><path d="M80 220 A120 120 0 0 1 320 220" fill="none" stroke="#1d201e" stroke-width="3" opacity=".25"/><path d="M80 220 A120 120 0 0 1 292 140" fill="none" stroke="#1d201e" stroke-width="6" stroke-linecap="round"/><circle cx="292" cy="140" r="9" fill="#94321f"/><g fill="#1d201e" opacity=".6"><rect x="80" y="244" width="60" height="6" rx="3"/><rect x="260" y="244" width="60" height="6" rx="3"/></g></svg>
+            </div>
+            <div class="engine-meta"><h3 class="h3">text-classification</h3><span>sentiment lexicon</span></div>
+            <p class="body sm">A tiny lexicon classifier with negation handling. Labels are <code>positive</code>, <code>negative</code> or <code>neutral</code>.</p>
+            <pre class="code" tabindex="0"><span class="c-mut">input</span>  I love this great product
+<span class="c-mut">output</span> {"label": "positive", "score": 0.8808}</pre>
+          </article>
+
+          <article class="engine reveal">
+            <div class="art art-emb" aria-hidden="true">
+              <svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#e3d3c8"/><line x1="50" y1="150" x2="350" y2="150" stroke="#1d201e" stroke-width="2" opacity=".35"/><g fill="#1d201e"><rect x="68" y="150" width="30" height="60" rx="4" opacity=".8"/><rect x="128" y="150" width="30" height="30" rx="4" opacity=".6"/><rect x="188" y="150" width="30" height="12" rx="4" opacity=".45"/><rect x="248" y="90" width="30" height="60" rx="4" opacity=".8"/><rect x="308" y="30" width="30" height="120" rx="4" fill="#94321f"/></g></svg>
+            </div>
+            <div class="engine-meta"><h3 class="h3">embedding</h3><span>config: dimensions 1–1024</span></div>
+            <p class="body sm">A unit-length vector from a stable hash of the input. Five dimensions by default, up to 1,024.</p>
+            <pre class="code" tabindex="0"><span class="c-mut">input</span>  hello world
+<span class="c-mut">output</span> {"embedding": [-0.362459, -0.145358,
+           -0.054593, 0.304294, 0.867133]}</pre>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Capabilities (accordion) ===== -->
+    <section class="section vellum" id="capabilities" aria-label="Capabilities">
+      <div class="wrap services-grid">
+        <header class="reveal">
+          <p class="eyebrow">Capabilities</p>
+          <h2 class="h2 big">Register, infer and inspect, under one roof.</h2>
+          <p class="body">From a single call to a full audit trail, five capabilities share one contract.</p>
+          <a class="link-arrow" href="/docs">All endpoints <span aria-hidden="true">→</span></a>
+        </header>
+
+        <div class="accordion reveal" data-accordion>
+          <div class="acc-item open">
+            <h3><button class="acc-btn" type="button" aria-expanded="true" aria-controls="acc-1" id="acc-btn-1"><span class="num">01</span><span>Model registry</span><i class="plus" aria-hidden="true"></i></button></h3>
+            <div class="acc-panel" id="acc-1" role="region" aria-labelledby="acc-btn-1"><div>
+              <p class="body">Create, list, fetch and delete models. Names are unique and trimmed, types are validated, and type-specific config is checked before anything is stored.</p>
+              <ul class="pills"><li>POST /models</li><li>GET /models</li><li>GET /models/{id}</li><li>DELETE /models/{id}</li></ul>
+              <a class="link-arrow" href="/docs">See the reference <span aria-hidden="true">→</span></a>
+            </div></div>
+          </div>
+          <div class="acc-item">
+            <h3><button class="acc-btn" type="button" aria-expanded="false" aria-controls="acc-2" id="acc-btn-2"><span class="num">02</span><span>Inference</span><i class="plus" aria-hidden="true"></i></button></h3>
+            <div class="acc-panel" id="acc-2" role="region" aria-labelledby="acc-btn-2"><div>
+              <p class="body">Send a string to a model and get a completed inference back with its output, timestamps and measured latency in milliseconds. Run up to 64 inputs in one batch, or stream a text-generation result token by token over Server-Sent Events.</p>
+              <ul class="pills"><li>POST /models/{id}/infer</li><li>POST /models/{id}/infer/batch</li><li>POST /models/{id}/infer/stream</li></ul>
+              <a class="link-arrow" href="#playground">Run one now <span aria-hidden="true">→</span></a>
+            </div></div>
+          </div>
+          <div class="acc-item">
+            <h3><button class="acc-btn" type="button" aria-expanded="false" aria-controls="acc-3" id="acc-btn-3"><span class="num">03</span><span>Inference history</span><i class="plus" aria-hidden="true"></i></button></h3>
+            <div class="acc-panel" id="acc-3" role="region" aria-labelledby="acc-btn-3"><div>
+              <p class="body">Every model keeps its most recent inferences, oldest evicted first. List the whole history, page through it with <code>limit</code> and <code>offset</code>, or fetch a single inference by id. The full total comes back in <code>X-Total-Count</code>.</p>
+              <ul class="pills"><li>GET /models/{id}/inferences</li><li>GET /models/{id}/inferences/{inferenceId}</li></ul>
+              <a class="link-arrow" href="/docs">See the reference <span aria-hidden="true">→</span></a>
+            </div></div>
+          </div>
+          <div class="acc-item">
+            <h3><button class="acc-btn" type="button" aria-expanded="false" aria-controls="acc-4" id="acc-btn-4"><span class="num">04</span><span>Observability</span><i class="plus" aria-hidden="true"></i></button></h3>
+            <div class="acc-panel" id="acc-4" role="region" aria-labelledby="acc-btn-4"><div>
+              <p class="body">A health endpoint reports version, uptime, model and inference counts, and <code>/metrics</code> exposes Prometheus counters and latency histograms. Every response carries <code>x-request-id</code> and <code>x-response-time-ms</code>, and unhandled errors are logged, never leaked.</p>
+              <ul class="pills"><li>GET /health</li><li>GET /metrics</li><li>x-request-id</li><li>x-response-time-ms</li></ul>
+              <a class="link-arrow" href="/health">Check health <span aria-hidden="true">→</span></a>
+            </div></div>
+          </div>
+          <div class="acc-item">
+            <h3><button class="acc-btn" type="button" aria-expanded="false" aria-controls="acc-5" id="acc-btn-5"><span class="num">05</span><span>Access control</span><i class="plus" aria-hidden="true"></i></button></h3>
+            <div class="acc-panel" id="acc-5" role="region" aria-labelledby="acc-btn-5"><div>
+              <p class="body">Set <code>API_KEY</code> and every route except health and the docs requires <code>Authorization: Bearer</code> or <code>X-API-Key</code>. Keys are compared in constant time, and failures return the usual envelope with a 401.</p>
+              <ul class="pills"><li>API_KEY</li><li>Authorization: Bearer</li><li>X-API-Key</li></ul>
+              <a class="link-arrow" href="/docs">See the reference <span aria-hidden="true">→</span></a>
+            </div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Beliefs (falu) ===== -->
+    <section class="section falu" aria-label="Design principles">
+      <div class="wrap beliefs-grid">
+        <div class="reveal">
+          <p class="eyebrow">Design notes <span>Since v0.1</span></p>
+          <p class="statement">Small enough to read in an afternoon. Strict enough to trust in production.</p>
+        </div>
+        <ol class="principles">
+          <li class="reveal"><h3 class="h3">Deterministic by design</h3><p>Engines are pure functions with no network, no randomness and no model weights. Tests assert exact outputs, and so can yours.</p></li>
+          <li class="reveal"><h3 class="h3">Bounded by default</h3><p>At most 1,000 models, 1,000 inferences per model, 64 inputs per batch and 100,000 characters per input. Tune each with an environment variable, and bad values fail at startup.</p></li>
+          <li class="reveal"><h3 class="h3">One envelope, everywhere</h3><p>Success, data and error on every response, including 404s, 405s and validation failures. Clients never parse two shapes.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== Quickstart ===== -->
+    <section class="section" id="quickstart" aria-label="Quickstart">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <div>
+            <p class="eyebrow">How to run it</p>
+            <h2 class="h2 big">Four commands from clone to first inference.</h2>
+          </div>
+          <div class="section-aside"><p class="body">Needs Python 3.12 and uv. The only runtime dependencies are FastAPI and Uvicorn.</p></div>
+        </header>
+        <ol class="steps">
+          <li class="step reveal">
+            <div class="step-meta"><span>Step 1</span><span>Install</span></div>
+            <h3 class="h3">Sync dependencies</h3>
+            <p class="body sm">Creates a virtual environment from the lockfile.</p>
+            <div class="cmd"><code>uv sync --extra dev</code><button class="copy" type="button" data-copy="uv sync --extra dev">Copy</button></div>
+          </li>
+          <li class="step reveal">
+            <div class="step-meta"><span>Step 2</span><span>Port 3000</span></div>
+            <h3 class="h3">Start the server</h3>
+            <p class="body sm">Listens on <code>0.0.0.0:3000</code>. Override with <code>HOST</code> and <code>PORT</code>.</p>
+            <div class="cmd"><code>uv run python -m src.server</code><button class="copy" type="button" data-copy="uv run python -m src.server">Copy</button></div>
+          </li>
+          <li class="step reveal">
+            <div class="step-meta"><span>Step 3</span><span>201 Created</span></div>
+            <h3 class="h3">Register a model</h3>
+            <p class="body sm">Pick a type, give it a unique name.</p>
+            <div class="cmd"><code>curl -X POST localhost:3000/models -H 'content-type: application/json' -d '{"name":"demo","type":"text-classification"}'</code><button class="copy" type="button" data-copy="curl -X POST localhost:3000/models -H 'content-type: application/json' -d '{&quot;name&quot;:&quot;demo&quot;,&quot;type&quot;:&quot;text-classification&quot;}'">Copy</button></div>
+          </li>
+          <li class="step reveal">
+            <div class="step-meta"><span>Step 4</span><span>Milliseconds</span></div>
+            <h3 class="h3">Run an inference</h3>
+            <p class="body sm">Use the <code>id</code> from the previous response.</p>
+            <div class="cmd"><code>curl -X POST localhost:3000/models/$ID/infer -H 'content-type: application/json' -d '{"input":"I love this"}'</code><button class="copy" type="button" data-copy="curl -X POST localhost:3000/models/$ID/infer -H 'content-type: application/json' -d '{&quot;input&quot;:&quot;I love this&quot;}'">Copy</button></div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== Playground ===== -->
+    <section class="section vellum" id="playground" aria-label="Try it live">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <div>
+            <p class="eyebrow">Try it live</p>
+            <h2 class="h2 big">This page talks to the real server.</h2>
+          </div>
+          <div class="section-aside"><p class="body">Pick an engine, type some text and send it. The request below is the one actually made, and the response is exactly what came back.</p></div>
+        </header>
+
+        <div class="playground reveal">
+          <form class="pg-form" id="pg-form" autocomplete="off">
+            <fieldset class="seg" id="pg-type">
+              <legend>Engine</legend>
+              <label><input type="radio" name="type" value="text-classification" checked><span>text-classification</span></label>
+              <label><input type="radio" name="type" value="text-generation"><span>text-generation</span></label>
+              <label><input type="radio" name="type" value="embedding"><span>embedding</span></label>
+            </fieldset>
+            <label class="field" for="pg-input"><span>Input</span></label>
+            <textarea id="pg-input" name="input" rows="4" maxlength="2000" placeholder="Type something to send…">I love how simple and fast this is.</textarea>
+            <div class="field-key" id="pg-key-wrap" hidden>
+              <label class="field" for="pg-key"><span>This server requires an API key</span></label>
+              <input id="pg-key" type="password" autocomplete="off" spellcheck="false" placeholder="API_KEY value (kept in this tab only)">
+            </div>
+            <div class="pg-actions">
+              <button class="btn btn-solid" type="submit" id="pg-run">Run inference</button>
+              <button class="btn btn-ghost" type="button" id="pg-example">Try another example</button>
+            </div>
+            <div class="pg-history" aria-live="polite">
+              <p class="eyebrow">Recent inferences <span id="pg-count"></span></p>
+              <ul id="pg-history"><li class="empty">Nothing yet. Run one.</li></ul>
+            </div>
+          </form>
+
+          <div class="pg-out">
+            <div class="pg-panel">
+              <div class="pg-bar"><span>Request</span><span id="pg-req-line" class="mono">POST /models/{id}/infer</span></div>
+              <pre class="code dark" id="pg-req" tabindex="0">{
+  "input": "I love how simple and fast this is."
+}</pre>
+            </div>
+            <div class="pg-panel">
+              <div class="pg-bar"><span>Response</span><span class="mono"><b id="pg-status" class="badge">idle</b> <span id="pg-ms"></span></span></div>
+              <pre class="code dark" id="pg-res" tabindex="0" aria-live="polite">Run an inference to see the response.</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Implementations carousel ===== -->
+    <section class="section ink" id="implementations" aria-label="Implementations">
+      <div class="wrap">
+        <header class="carousel-head reveal">
+          <p class="eyebrow">One contract <span>Four implementations</span></p>
+          <a class="link-arrow" href="/docs">Read the contract <span aria-hidden="true">→</span></a>
+        </header>
+
+        <div class="carousel reveal" data-carousel aria-roledescription="carousel" aria-label="Implementations">
+          <div class="slides" aria-live="polite">
+            <blockquote class="slide active" data-i="0">
+              <p class="quote">“Node.js 22 with Fastify 5. The reference implementation every other port is checked against.”</p>
+              <footer><strong>TypeScript</strong> <span>ai-inference-server-ts</span></footer>
+            </blockquote>
+            <blockquote class="slide" data-i="1" hidden>
+              <p class="quote">“Standard library plus chi. One static binary, no runtime to install.”</p>
+              <footer><strong>Go</strong> <span>ai-inference-server-go</span></footer>
+            </blockquote>
+            <blockquote class="slide" data-i="2" hidden>
+              <p class="quote">“tokio and axum. The same envelope, with the type system doing the validating.”</p>
+              <footer><strong>Rust</strong> <span>ai-inference-server-rust</span></footer>
+            </blockquote>
+            <blockquote class="slide" data-i="3" hidden>
+              <p class="quote">“Python 3.12, FastAPI and Uvicorn. The one serving this page, with interactive docs for free.”</p>
+              <footer><strong>Python</strong> <span>ai-inference-server-py, you are here</span></footer>
+            </blockquote>
+          </div>
+          <div class="carousel-ctrl">
+            <div class="arrows">
+              <button type="button" class="round" data-prev aria-label="Previous implementation">←</button>
+              <button type="button" class="round" data-next aria-label="Next implementation">→</button>
+            </div>
+            <div class="dots" role="group" aria-label="Choose implementation">
+              <button type="button" class="dot on" aria-label="Show implementation 1 of 4" aria-current="true"></button>
+              <button type="button" class="dot" aria-label="Show implementation 2 of 4"></button>
+              <button type="button" class="dot" aria-label="Show implementation 3 of 4"></button>
+              <button type="button" class="dot" aria-label="Show implementation 4 of 4"></button>
+            </div>
+            <span class="count" data-count-label>01 / 04</span>
+          </div>
+          <ul class="slide-labels" aria-hidden="true">
+            <li class="on">TypeScript</li><li>Go</li><li>Rust</li><li>Python</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Docs / Journal ===== -->
+    <section class="section" id="reference" aria-label="Reference">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <div>
+            <p class="eyebrow">Reference</p>
+            <h2 class="h2 big">Notes on contracts, limits and errors.</h2>
+          </div>
+          <div class="section-aside"><a class="link-arrow" href="/docs">All references <span aria-hidden="true">→</span></a></div>
+        </header>
+        <div class="journal">
+          <a class="post reveal" href="/docs">
+            <div class="art"><svg viewBox="0 0 400 240" aria-hidden="true"><rect width="400" height="240" fill="#e5dccb"/><g fill="none" stroke="#1d201e" stroke-width="3"><rect x="60" y="50" width="280" height="40" rx="20"/><rect x="60" y="110" width="280" height="40" rx="20" opacity=".6"/><rect x="60" y="170" width="280" height="40" rx="20" opacity=".3"/></g><circle cx="90" cy="70" r="8" fill="#94321f"/></svg></div>
+            <p class="post-meta"><span>Swagger UI</span><span>/docs</span></p>
+            <h3 class="h3">Interactive API docs</h3>
+          </a>
+          <a class="post reveal" href="/redoc">
+            <div class="art"><svg viewBox="0 0 400 240" aria-hidden="true"><rect width="400" height="240" fill="#d9ddd0"/><g fill="#1d201e"><rect x="60" y="50" width="90" height="140" rx="8" opacity=".15"/><rect x="170" y="56" width="170" height="10" rx="5"/><rect x="170" y="84" width="140" height="10" rx="5" opacity=".6"/><rect x="170" y="112" width="160" height="10" rx="5" opacity=".6"/><rect x="170" y="140" width="110" height="10" rx="5" opacity=".4"/></g><circle cx="105" cy="120" r="8" fill="#94321f"/></svg></div>
+            <p class="post-meta"><span>ReDoc</span><span>/redoc</span></p>
+            <h3 class="h3">Readable reference</h3>
+          </a>
+          <a class="post reveal" href="/openapi.json">
+            <div class="art"><svg viewBox="0 0 400 240" aria-hidden="true"><rect width="400" height="240" fill="#e3d3c8"/><g font-family="ui-monospace, Menlo, monospace" font-size="30" fill="#1d201e"><text x="70" y="95">{ "openapi":</text><text x="70" y="140" fill="#94321f">  "3.1.0"</text><text x="70" y="185">  … }</text></g></svg></div>
+            <p class="post-meta"><span>OpenAPI</span><span>/openapi.json</span></p>
+            <h3 class="h3">Machine-readable schema</h3>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== Footer ===== -->
+  <footer class="footer ink">
+    <div class="wrap">
+      <div class="cta-block">
+        <h2 class="display sm">Have a model in mind?</h2>
+        <p class="lede">Start the server, register a model and send it your first input.</p>
+        <div class="cta-row">
+          <a class="btn btn-light" href="#quickstart">Run it locally</a>
+          <a class="btn btn-outline-light" href="/docs">Open the API docs</a>
+        </div>
+      </div>
+
+      <div class="foot-grid">
+        <div class="foot-brand">
+          <a class="brand" href="#top">Inference<svg class="needle" viewBox="0 0 24 32" aria-hidden="true"><path d="M12 1 L22 31 L12 24 L2 31 Z" /></svg></a>
+          <p>A small model registry and inference API with deterministic engines. Mirrored in four languages.</p>
+        </div>
+        <nav aria-label="Server"><h2>Server</h2>
+          <ul><li><a href="#top">Overview</a></li><li><a href="#engines">Engines</a></li><li><a href="#capabilities">Capabilities</a></li><li><a href="#quickstart">Quickstart</a></li></ul>
+        </nav>
+        <nav aria-label="Reference"><h2>Reference</h2>
+          <ul><li><a href="/docs">Swagger UI</a></li><li><a href="/redoc">ReDoc</a></li><li><a href="/openapi.json">OpenAPI JSON</a></li><li><a href="/health">Health</a></li><li><a href="/metrics">Metrics</a></li></ul>
+        </nav>
+        <div><h2>Configure</h2>
+          <ul class="env"><li><code>HOST</code> <code>PORT</code></li><li><code>API_KEY</code> <code>LOG_LEVEL</code></li><li><code>MAX_MODELS</code> <code>MAX_BATCH_SIZE</code></li><li><code>MAX_INPUT_CHARS</code></li></ul>
+        </div>
+        <div><h2>Live status</h2>
+          <p class="status"><span class="status-dot" data-status-dot></span><span data-status-text>Checking server…</span></p>
+          <p class="status-sub" data-status-sub></p>
+        </div>
+      </div>
+
+      <div class="foot-bottom">
+        <span>Python port, FastAPI + Uvicorn</span>
+        <a href="#top" class="back-top">Return <span aria-hidden="true">↑</span> Back to top</a>
+      </div>
+      <p class="giant" aria-hidden="true">Inference</p>
+    </div>
+  </footer>
+
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
