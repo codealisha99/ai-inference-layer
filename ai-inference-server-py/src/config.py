@@ -17,6 +17,13 @@ def _int_env(name: str, default: int) -> int:
     return value
 
 
+def _choice_env(name: str, default: str, choices: tuple[str, ...]) -> str:
+    value = os.getenv(name, default).lower()
+    if value not in choices:
+        raise ValueError(f"{name} must be one of {', '.join(choices)}, got {value!r}")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     host: str = "0.0.0.0"  # noqa: S104 - intended for container use
@@ -27,6 +34,9 @@ class Settings:
     max_models: int = 1_000
     max_inferences_per_model: int = 1_000
     max_batch_size: int = 64
+    max_body_bytes: int = 4 * 1024 * 1024
+    log_format: str = "text"  # "text" or "json"
+    cors_origins: tuple[str, ...] = ()  # empty -> CORS disabled; ("*",) -> any origin
     api_key: str | None = None
     database_path: str | None = None  # None -> in-memory; a path or ":memory:" -> SQLite
 
@@ -44,6 +54,11 @@ class Settings:
                 "MAX_INFERENCES_PER_MODEL", d.max_inferences_per_model
             ),
             max_batch_size=_int_env("MAX_BATCH_SIZE", d.max_batch_size),
+            max_body_bytes=_int_env("MAX_BODY_BYTES", d.max_body_bytes),
+            log_format=_choice_env("LOG_FORMAT", d.log_format, ("text", "json")),
+            cors_origins=tuple(
+                o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()
+            ),
             api_key=os.getenv("API_KEY") or None,
             database_path=os.getenv("DATABASE_PATH") or None,
         )

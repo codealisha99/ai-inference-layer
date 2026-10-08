@@ -84,6 +84,8 @@ All responses use the envelope `{"success": bool, "data": ..., "error": string |
 | GET | `/` | Landing page | 200 |
 | GET | `/health` | Status, version, storage backend, uptime, counts | 200 |
 | GET | `/metrics` | Prometheus metrics | 200 |
+| GET | `/livez` | Liveness probe (never touches storage) | 200 |
+| GET | `/readyz` | Readiness probe: 200 when storage answers, else 503 | 200 / 503 |
 | POST | `/models` | Register a model | 201 |
 | GET | `/models` | List models (`?limit=&offset=`) | 200 |
 | GET | `/models/{id}` | Get a model | 200 |
@@ -136,12 +138,15 @@ curl -sN -XPOST localhost:3000/models/$GEN/infer/stream -H 'content-type: applic
 | 404 | Unknown route, model or inference |
 | 405 | Method not allowed |
 | 409 | Model name already exists (names are trimmed) |
-| 413 | Input longer than `MAX_INPUT_CHARS` |
+| 413 | Input longer than `MAX_INPUT_CHARS`, or request body larger than `MAX_BODY_BYTES` |
 | 429 | `MAX_MODELS` reached |
 | 500 | Unexpected error (details are logged, never returned) |
+| 503 | Storage is temporarily unavailable (sent with `Retry-After`) |
 
-Every response carries `X-Request-ID` (echoed from the request or generated) and
-`X-Response-Time-Ms`.
+Every response carries `X-Request-ID` (echoed from the request if it is 1-128 characters of
+`A-Za-z0-9._-`, otherwise generated) and `X-Response-Time-Ms`. API responses also send
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` and
+`Cache-Control: no-store`.
 
 ## Configuration
 
@@ -157,6 +162,9 @@ Every response carries `X-Request-ID` (echoed from the request or generated) and
 | `MAX_MODELS` | `1000` | Max registered models |
 | `MAX_INFERENCES_PER_MODEL` | `1000` | History kept per model (oldest evicted first) |
 | `MAX_BATCH_SIZE` | `64` | Max inputs per batch request |
+| `MAX_BODY_BYTES` | `4194304` | Max request body size, enforced while reading (covers chunked uploads) |
+| `LOG_FORMAT` | `text` | `text`, or `json` for one structured object per line (request id, method, path, status, duration) |
+| `CORS_ORIGINS` | unset | Comma-separated allowed browser origins (`*` for any). Unset disables CORS |
 
 Invalid values fail fast at startup.
 

@@ -34,6 +34,7 @@ class Store(Protocol):
     ) -> tuple[list[Inference], int] | None: ...
     def get_inference(self, model_id: str, inference_id: str) -> dict[str, Any]: ...
     def stats(self) -> dict[str, int]: ...
+    def ping(self) -> bool: ...
     def close(self) -> None: ...
 
 
@@ -156,6 +157,9 @@ class InferenceStore:
             if bucket is None:
                 return {"modelFound": False}
             return {"modelFound": True, "inf": bucket.get(inference_id)}
+
+    def ping(self) -> bool:
+        return True
 
     def close(self) -> None:
         """Nothing to release for the in-memory store."""

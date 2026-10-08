@@ -4,6 +4,7 @@ import hmac
 import json
 import logging
 import re
+import sqlite3
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -16,12 +17,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.cors import CORSMiddleware
 
 from . import __version__
 from .config import Settings
 from .engines import ConfigError, validate_config
 from .inference import VALID_TYPES, InferenceStore, Store, StoreFull
+from .logging_config import configure_logging
 from .metrics import Metrics
+from .middleware import BodyLimitMiddleware, BodyTooLarge
 from .sqlite_store import SqliteStore
 
 logger = logging.getLogger("ai_inference_server")
@@ -30,7 +34,16 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 TYPE_ERROR = "type must be one of: text-generation, text-classification, embedding"
 _HTTP_MESSAGES = {404: "not found", 405: "method not allowed", 401: "unauthorized"}
-_PUBLIC_PATHS = frozenset({"/", "/health", "/docs", "/redoc", "/openapi.json"})
+_PUBLIC_PATHS = frozenset(
+    {"/", "/health", "/livez", "/readyz", "/docs", "/redoc", "/openapi.json"}
+)
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._\-]{1,128}$")
+_SECURITY_HEADERS = {
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer",
+}
+_CORS_HEADERS = ["authorization", "content-type", "x-api-key", "x-request-id"]
 _PUBLIC_PREFIXES = ("/assets/",)  # landing page assets; never need an API key
 
 
@@ -56,9 +69,16 @@ async def _json_object(request: Request) -> dict[str, Any]:
     """Parse the request body as a JSON object; anything else yields ``{}``."""
     try:
         body = await request.json()
+    except BodyTooLarge:
+        raise
     except Exception:
         return {}
     return body if isinstance(body, dict) else {}
+
+
+def _is_static(path: str) -> bool:
+    """Landing page, its assets and the API docs may be cached; API responses may not."""
+    return path == "/" or path.startswith(("/assets/", "/docs", "/redoc"))
 
 
 def _page_params(request: Request) -> tuple[int | None, int] | str:
@@ -138,12 +158,16 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
     )
 
     # ---- middleware & error handling -------------------------------------------------
+    # Added first = innermost: oversized bodies surface as errors inside the logging/metrics
+    # layer below, so they are counted and logged like any other response.
+    app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_body_bytes)
 
     @app.middleware("http")
     async def request_context(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+        supplied_id = request.headers.get("x-request-id", "")
+        request_id = supplied_id if _REQUEST_ID_RE.match(supplied_id) else uuid.uuid4().hex
         start = time.perf_counter()
         if (
             settings.api_key
@@ -164,13 +188,23 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
         metrics.observe_request(request.method, route, response.status_code, elapsed)
         response.headers["x-request-id"] = request_id
         response.headers["x-response-time-ms"] = f"{elapsed_ms:.2f}"
+        for name, value in _SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        if not _is_static(request.url.path):
+            response.headers.setdefault("cache-control", "no-store")
         logger.info(
-            "%s %s -> %d (%.2fms) request_id=%s",
+            "%s %s -> %d (%.2fms)",
             request.method,
             request.url.path,
             response.status_code,
             elapsed_ms,
-            request_id,
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status": response.status_code,
+                "duration_ms": round(elapsed_ms, 2),
+            },
         )
         return response
 
@@ -179,9 +213,30 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
         message = _HTTP_MESSAGES.get(exc.status_code) or str(exc.detail)
         return _error(exc.status_code, message)
 
+    @app.exception_handler(BodyTooLarge)
+    async def body_too_large(_request: Request, exc: BodyTooLarge) -> JSONResponse:
+        return _error(413, str(exc))
+
+    @app.exception_handler(sqlite3.Error)
+    async def storage_unavailable(_request: Request, exc: sqlite3.Error) -> JSONResponse:
+        logger.error("storage error: %s", exc)
+        response = _error(503, "storage temporarily unavailable")
+        response.headers["retry-after"] = "1"
+        return response
+
     @app.exception_handler(RequestValidationError)
     async def validation_error(_request: Request, _exc: RequestValidationError) -> JSONResponse:
         return _error(400, "invalid request")
+
+    if settings.cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(settings.cors_origins),
+            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+            allow_headers=_CORS_HEADERS,
+            expose_headers=["x-request-id", "x-total-count", "x-response-time-ms"],
+            max_age=600,
+        )
 
     # ---- landing page ----------------------------------------------------------------
 
@@ -197,6 +252,20 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
         model = store.get_model(model_id)
         if model:
             metrics.observe_inferences(model["type"], n)
+
+    @app.get("/livez", tags=["operations"], summary="Liveness probe")
+    async def livez() -> dict[str, Any]:
+        """The process is up and serving requests. Never touches storage."""
+        return _ok({"status": "alive"})
+
+    @app.get("/readyz", tags=["operations"], summary="Readiness probe", response_model=None)
+    async def readyz() -> JSONResponse:
+        """Ready to take traffic: 200 when storage answers, 503 otherwise."""
+        if store.ping():
+            return JSONResponse(content=_ok({"status": "ready", "storage": store.kind}))
+        response = _error(503, "storage unavailable")
+        response.headers["retry-after"] = "1"
+        return response
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -374,10 +443,7 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
 def create_app() -> FastAPI:
     """Factory used by ``uvicorn --factory`` and the ``__main__`` entry point."""
     settings = Settings.from_env()
-    logging.basicConfig(
-        level=settings.log_level.upper(),
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
+    configure_logging(settings.log_level, settings.log_format)
     return build_app(settings=settings)
 
 

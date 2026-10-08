@@ -244,6 +244,15 @@ class SqliteStore:
             ).fetchone()
         return {"modelFound": True, "inf": _inference(row) if row else None}
 
+    def ping(self) -> bool:
+        """True if the database answers a trivial query (used by the readiness probe)."""
+        try:
+            with self._lock:
+                self._conn.execute("SELECT 1").fetchone()
+            return True
+        except sqlite3.Error:
+            return False
+
     def stats(self) -> dict[str, int]:
         with self._lock:
             models = self._conn.execute("SELECT COUNT(*) FROM models").fetchone()[0]
