@@ -1,0 +1,21 @@
+.DS_Store
+
+# build artifacts and dependencies
+node_modules/
+dist/
+target/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# local data and snapshots
+*.db
+*.db-wal
+*.db-shm
+*.zip
