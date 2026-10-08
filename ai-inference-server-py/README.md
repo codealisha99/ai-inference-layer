@@ -43,6 +43,7 @@ ais batch sentiment "great" "awful" "a table"         # one request, many inputs
 ais batch sentiment -f reviews.txt                    # one input per line
 ais history sentiment --limit 10
 ais health
+ais bench --duration 5 -c 16                          # load-test a running server
 ```
 
 Models can be referenced by name or id. Add `--json` to any command for raw JSON (handy with
@@ -201,15 +202,21 @@ Layout:
 
 ```
 src/
-  cli.py        `ais` command line
-  client.py     Dependency-free Python client
-  server.py     FastAPI app, routes, middleware, error handling
-  inference.py  Store protocol and the thread-safe, bounded in-memory store
-  sqlite_store.py  Durable SQLite store with the same semantics
-  engines.py    Deterministic inference engines + config validation
-  metrics.py    Prometheus text exposition
-  config.py     Environment-driven settings
-  static/       Landing page (served at / and /assets)
+  cli.py          `ais` command line
+  client.py       Dependency-free Python client
+  bench.py        Load generator behind `ais bench`
+  server.py       FastAPI app factory, routes, exception handlers
+  middleware.py   Pure-ASGI request pipeline (ids, auth, rate limit, metrics, logs) and body limit
+  ratelimit.py    Token-bucket limiter
+  schemas.py      Pydantic response/request models (the typed OpenAPI contract)
+  openapi.py      OpenAPI metadata and schema assembly
+  inference.py    Store protocol and the thread-safe, bounded in-memory store
+  sqlite_store.py Durable SQLite store with the same semantics
+  engines.py      Deterministic inference engines + config validation
+  metrics.py      Prometheus text exposition
+  logging_config.py  Text and JSON log formats
+  config.py       Environment-driven settings
+  static/         Landing page (served at / and /assets)
 tests/          Unit, API and end-to-end tests (HTTP contract, both stores, engines, auth,
                 SSE, metrics, and the client and CLI against a real running server)
 ```
@@ -224,3 +231,44 @@ a database written by a newer server is refused rather than misread. One process
 database file: run a single worker.
 
 Without `DATABASE_PATH`, a restart clears all models and history.
+
+## Performance
+
+`ais bench` drives a running server with keep-alive connections and reports throughput and
+latency percentiles per scenario. It creates (and removes) its own `bench-*` models, so it is safe
+to point at a scratch server:
+
+```bash
+ais serve &                          # or: ais serve --db /tmp/bench.db
+ais bench --duration 5 -c 16         # add --json for machine-readable output
+```
+
+Measured on an Apple M4, Python 3.12, one uvicorn worker, 16 client connections on the same
+machine (so the load generator competes for CPU; treat the numbers as a floor, not a ceiling):
+
+| Scenario                       | Memory req/s | SQLite req/s | Memory p50 | SQLite p50 |
+|--------------------------------|-------------:|-------------:|-----------:|-----------:|
+| `GET /health`                  |       11,821 |       10,803 |    1.26 ms |    1.33 ms |
+| `GET /models/{id}`             |        9,878 |       10,026 |    1.36 ms |    1.47 ms |
+| `GET /models` (list)           |        9,742 |        9,030 |    1.37 ms |    1.63 ms |
+| infer: text-generation         |        8,790 |        4,656 |    1.61 ms |    2.78 ms |
+| infer: text-classification     |        8,954 |        4,840 |    1.60 ms |    2.83 ms |
+| infer: embedding (64 dims)     |        6,704 |        3,804 |    2.10 ms |    3.58 ms |
+| `GET` history (limit 20)       |        6,662 |        5,342 |    2.21 ms |    2.72 ms |
+| batch of 16 embeddings         |        1,362 |          792 |   10.77 ms |   18.99 ms |
+
+Where the time goes, and what was done about it:
+
+- **Middleware.** The request pipeline is plain ASGI rather than Starlette's
+  `BaseHTTPMiddleware`. The latter wraps every request in extra tasks and streams; on a trivial
+  app that alone cut throughput from ~13.8k to ~6.8k req/s. Moving to pure ASGI roughly doubled
+  `/health` and inference throughput.
+- **Event loop and parser.** `uvicorn[standard]` brings uvloop and httptools.
+- **Writes.** Inference on SQLite is bound by a durable write per request (WAL, one lock-protected
+  connection); a batch is a single transaction, which is why batching is the fast path for bulk
+  work: 16 inputs per request yields ~21.8k embeddings/s on memory (~12.7k on SQLite) versus
+  ~6.7k (~3.8k) as single requests.
+- **Engines.** A 64-dimension embedding costs ~23 µs of pure compute, so a 16-input batch is
+  dominated by hashing plus JSON encoding, not by the server.
+
+Numbers vary with hardware; run `ais bench` against your own deployment.

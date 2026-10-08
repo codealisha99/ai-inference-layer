@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import hmac
 import json
 import logging
 import re
 import sqlite3
 import time
-import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -26,7 +24,7 @@ from .engines import ConfigError, validate_config
 from .inference import VALID_TYPES, InferenceStore, Store, StoreFull
 from .logging_config import configure_logging
 from .metrics import Metrics
-from .middleware import BodyLimitMiddleware, BodyTooLarge
+from .middleware import BodyLimitMiddleware, BodyTooLarge, RequestContextMiddleware
 from .ratelimit import RateLimiter
 from .schemas import (
     BatchRequest,
@@ -48,22 +46,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 TYPE_ERROR = "type must be one of: text-generation, text-classification, embedding"
 _HTTP_MESSAGES = {404: "not found", 405: "method not allowed", 401: "unauthorized"}
-_PUBLIC_PATHS = frozenset(
-    {"/", "/health", "/livez", "/readyz", "/docs", "/redoc", "/openapi.json"}
-)
-_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._\-]{1,128}$")
-_SECURITY_HEADERS = {
-    "x-content-type-options": "nosniff",
-    "x-frame-options": "DENY",
-    "referrer-policy": "no-referrer",
-}
-_UNLIMITED_PATHS = frozenset({"/metrics"})  # scrapers poll this; auth already protects it
 _CORS_HEADERS = ["authorization", "content-type", "x-api-key", "x-request-id"]
-_PUBLIC_PREFIXES = ("/assets/",)  # landing page assets; never need an API key
-
-
-def _is_public(path: str) -> bool:
-    return path in _PUBLIC_PATHS or path.startswith(_PUBLIC_PREFIXES)
 MAX_PAGE_SIZE = 1_000
 _TOKEN_RE = re.compile(r"\S+\s*")
 
@@ -91,26 +74,6 @@ async def _json_object(request: Request) -> dict[str, Any]:
     return body if isinstance(body, dict) else {}
 
 
-def _client_id(request: Request, trust_proxy: bool) -> str:
-    """Identify the caller for rate limiting: peer address, or the last proxy-added hop."""
-    if trust_proxy:
-        forwarded = request.headers.get("x-forwarded-for", "")
-        hops = [h.strip() for h in forwarded.split(",") if h.strip()]
-        if hops:
-            return hops[-1]
-    return request.client.host if request.client else "unknown"
-
-
-def _is_exempt(path: str) -> bool:
-    """Probes, docs, the landing page and metrics are never rate limited."""
-    return _is_public(path) or path in _UNLIMITED_PATHS
-
-
-def _is_static(path: str) -> bool:
-    """Landing page, its assets and the API docs may be cached; API responses may not."""
-    return path == "/" or path.startswith(("/assets/", "/docs", "/redoc"))
-
-
 def _page_params(request: Request) -> tuple[int | None, int] | str:
     """Parse ``limit``/``offset`` query params; returns an error message on bad input."""
     params = request.query_params
@@ -135,14 +98,6 @@ def _page_params(request: Request) -> tuple[int | None, int] | str:
 
 def _list_response(items: list[Any], total: int) -> JSONResponse:
     return JSONResponse(content=_ok(items), headers={"x-total-count": str(total)})
-
-
-def _authorized(request: Request, api_key: str) -> bool:
-    supplied = request.headers.get("x-api-key", "")
-    auth = request.headers.get("authorization", "")
-    if not supplied and auth.lower().startswith("bearer "):
-        supplied = auth[7:].strip()
-    return hmac.compare_digest(supplied.encode(), api_key.encode())
 
 
 def _sse(data: Any, event: str | None = None) -> str:
@@ -200,68 +155,13 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
     # layer below, so they are counted and logged like any other response.
     app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_body_bytes)
 
-    @app.middleware("http")
-    async def request_context(
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        supplied_id = request.headers.get("x-request-id", "")
-        request_id = supplied_id if _REQUEST_ID_RE.match(supplied_id) else uuid.uuid4().hex
-        start = time.perf_counter()
-        limit_headers: dict[str, str] = {}
-        limited = False
-        path = request.url.path
-        if limiter is not None and request.method != "OPTIONS" and not _is_exempt(path):
-            decision = limiter.check(_client_id(request, settings.trust_proxy))
-            limit_headers = {
-                "x-ratelimit-limit": str(decision.limit),
-                "x-ratelimit-remaining": str(decision.remaining),
-                "x-ratelimit-reset": str(decision.reset),
-            }
-            if not decision.allowed:
-                limited = True
-                limit_headers["retry-after"] = str(decision.retry_after)
-        if limited:
-            response: Response = _error(429, "rate limit exceeded")
-        elif (
-            settings.api_key
-            and not _is_public(request.url.path)
-            and not _authorized(request, settings.api_key)
-        ):
-            response = _error(401, "unauthorized")
-            response.headers["www-authenticate"] = "Bearer"
-        else:
-            try:
-                response = await call_next(request)
-            except Exception:
-                logger.exception("unhandled error request_id=%s", request_id)
-                response = _error(500, "internal server error")
-        elapsed = time.perf_counter() - start
-        elapsed_ms = elapsed * 1000
-        route = getattr(request.scope.get("route"), "path", "unmatched")
-        metrics.observe_request(request.method, route, response.status_code, elapsed)
-        for name, value in limit_headers.items():
-            response.headers[name] = value
-        response.headers["x-request-id"] = request_id
-        response.headers["x-response-time-ms"] = f"{elapsed_ms:.2f}"
-        for name, value in _SECURITY_HEADERS.items():
-            response.headers.setdefault(name, value)
-        if not _is_static(request.url.path):
-            response.headers.setdefault("cache-control", "no-store")
-        logger.info(
-            "%s %s -> %d (%.2fms)",
-            request.method,
-            request.url.path,
-            response.status_code,
-            elapsed_ms,
-            extra={
-                "request_id": request_id,
-                "method": request.method,
-                "path": request.url.path,
-                "status": response.status_code,
-                "duration_ms": round(elapsed_ms, 2),
-            },
-        )
-        return response
+    app.add_middleware(
+        RequestContextMiddleware,
+        settings=settings,
+        metrics=metrics,
+        limiter=limiter,
+        logger=logger,
+    )
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(_request: Request, exc: StarletteHTTPException) -> JSONResponse:

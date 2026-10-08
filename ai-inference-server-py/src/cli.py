@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .bench import run_benchmark
 from .client import DEFAULT_URL, ApiError, Client, ServerUnreachable
 from .engines import MODEL_TYPES
 
@@ -282,6 +283,43 @@ def cmd_demo(c: Client, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_bench(c: Client, args: argparse.Namespace) -> int:
+    if not args.json:
+        print(
+            f"Benchmarking {c.base_url}: {args.duration:g}s per scenario, "
+            f"{args.concurrency} connections (uses temporary bench-* models)\n",
+            file=sys.stderr,
+        )
+    results = run_benchmark(
+        c,
+        duration=args.duration,
+        concurrency=args.concurrency,
+        progress=None if args.json else lambda name: print(f"  {name} ...", file=sys.stderr),
+    )
+    if args.json:
+        print(json.dumps([r.as_dict() for r in results], indent=2))
+    else:
+        print()
+        print(
+            _table(
+                ["SCENARIO", "REQ/S", "P50 MS", "P95 MS", "P99 MS", "ERRORS", "REQUESTS"],
+                [
+                    [
+                        r.name,
+                        f"{r.rps:,.0f}",
+                        f"{r.percentile(50):.2f}",
+                        f"{r.percentile(95):.2f}",
+                        f"{r.percentile(99):.2f}",
+                        r.errors,
+                        r.requests,
+                    ]
+                    for r in results
+                ],
+            )
+        )
+    return EXIT_ERROR if any(r.errors for r in results) else EXIT_OK
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     for env, value in (
         ("HOST", args.host),
@@ -338,6 +376,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("demo", parents=[common], help="create sample models and run them").set_defaults(
         func=cmd_demo
     )
+
+    bn = sub.add_parser("bench", parents=[common], help="load-test a server")
+    bn.add_argument("--duration", type=float, default=3.0, help="seconds per scenario")
+    bn.add_argument("--concurrency", "-c", type=int, default=16, help="parallel connections")
+    bn.set_defaults(func=cmd_bench)
 
     m = sub.add_parser("models", help="manage models").add_subparsers(
         dest="sub", metavar="ACTION", required=True
