@@ -12,8 +12,8 @@ the server dependency-free and its output reproducible, and the engine boundary 
 place a real backend would plug in.
 
 The Python port (`ai-inference-server-py`) is the most complete: on top of the shared contract it
-adds batch inference, SSE streaming, pagination, Prometheus metrics, optional API-key auth and
-configurable limits. See its [README](./ai-inference-server-py/README.md).
+adds batch inference, SSE streaming, pagination, Prometheus metrics, optional API-key auth,
+configurable limits and optional SQLite persistence. See its [README](./ai-inference-server-py/README.md).
 
 ## Component Diagram
 
@@ -23,7 +23,7 @@ graph TD
     subgraph Server
         Middleware[Middleware: auth, request id, access log, metrics]
         Middleware --> Routes[Routes + validation]
-        Routes --> Store[InferenceStore]
+        Routes --> Store[Store: memory or SQLite]
         Store --> Engines[Engines]
         Routes --> Metrics[Metrics]
     end
@@ -84,7 +84,9 @@ Every response is `{"success": bool, "data": ..., "error": string | null}`.
 |----------|-----------|
 | Deterministic engines instead of real models | No heavy dependencies, reproducible tests, and a clear seam (`run_engine`) for a real backend |
 | One response envelope everywhere, including 404/405/500 | Clients parse a single shape; no framework default error bodies leak through |
-| In-memory store behind a lock | Simple and fast for a reference server; the store API is the boundary for swapping in persistence |
+| `Store` protocol with memory and SQLite backends | The HTTP layer never knows which one it has; memory is the zero-config default, SQLite (`DATABASE_PATH`) makes data durable |
+| SQLite with one shared connection behind a lock, WAL, transactional batches | Simple, safe for this workload, atomic batches, and fast reads that do not block on writers |
+| Versioned schema (`user_version`); newer schemas refused | Future migrations are possible and an old server cannot corrupt a newer database |
 | Bounded memory (model cap, per-model history cap) | An unauthenticated or runaway client cannot grow the process without limit |
 | Python extras are additive | New fields (`latencyMs`) and endpoints do not change existing responses, so other ports stay compatible |
 | Metrics label by route template, not raw path | Unknown paths collapse to `unmatched`, keeping Prometheus cardinality bounded |
@@ -93,6 +95,8 @@ Every response is `{"success": bool, "data": ..., "error": string | null}`.
 
 ## Known Limitations
 
-- State is not persisted; a restart clears everything.
-- The server is single-process; with several workers each would hold its own store.
+- Persistence is Python-only and opt-in; the TypeScript, Go and Rust ports keep state in memory.
+- Run a single worker per database file; with the in-memory store, several workers would each
+  hold their own state.
+- `/health` and `/metrics` count rows on every call, which is fine at the default caps.
 - Auth is a single shared key, with no per-client keys or rate limiting.

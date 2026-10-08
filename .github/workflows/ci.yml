@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  typescript:
+    name: TypeScript — build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-inference-server-ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ai-inference-server-ts/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  go:
+    name: Go — build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-inference-server-go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - run: go build ./...
+      - run: go test -race ./...
+
+  rust:
+    name: Rust — build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-inference-server-rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ai-inference-server-rust
+      - run: cargo build --release
+      - run: cargo test
+  python:
+    name: Python — build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-inference-server-py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: ai-inference-server-py/pyproject.toml
+      - run: pip install -e ".[dev]"
+      - run: ruff check src/ tests/
+      - run: mypy
+      - run: pytest -v --cov
+
+  python-docker:
+    name: Python — docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t ai-inference-server-py ai-inference-server-py
+      - name: Smoke test (health, landing page, persistence across restart)
+        run: |
+          docker volume create ais-data
+          docker run -d --name ais -p 3000:3000 -v ais-data:/data ai-inference-server-py
+          for i in $(seq 1 20); do curl -fs localhost:3000/health && break; sleep 1; done
+          curl -fs localhost:3000/ | grep -q "<h1"
+          curl -fs -XPOST localhost:3000/models -H 'content-type: application/json' \
+            -d '{"name":"smoke","type":"embedding"}'
+          docker restart ais
+          for i in $(seq 1 20); do curl -fs localhost:3000/health && break; sleep 1; done
+          curl -fs localhost:3000/models | grep -q '"smoke"'
+
