@@ -52,8 +52,12 @@ jobs:
       - run: cargo build --release
       - run: cargo test
   python:
-    name: Python — build & test
+    name: Python ${{ matrix.python }} — build & test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.13']
     defaults:
       run:
         working-directory: ai-inference-server-py
@@ -61,13 +65,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
           cache: 'pip'
           cache-dependency-path: ai-inference-server-py/pyproject.toml
       - run: pip install -e ".[dev]"
       - run: ruff check src/ tests/
+      - run: ruff format --check src/ tests/
       - run: mypy
       - run: pytest -v --cov
+      - name: Load-test smoke (real server, both stores, zero errors allowed)
+        run: |
+          ais serve --port 3100 & ais serve --port 3101 --db "$RUNNER_TEMP/bench.db" &
+          for p in 3100 3101; do
+            for i in $(seq 1 30); do curl -fs localhost:$p/livez && break; sleep 1; done
+            ais bench --url http://localhost:$p --duration 1 -c 4
+          done
 
   python-docker:
     name: Python — docker build

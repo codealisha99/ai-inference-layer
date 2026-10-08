@@ -220,9 +220,9 @@ class TestServerIntegration:
 
     def test_full_api_on_sqlite(self, db_path):
         with TestClient(build_app(settings=Settings(database_path=db_path))) as c:
-            mid = c.post("/models", json={"name": "g", "type": "text-generation"}).json()[
-                "data"
-            ]["id"]
+            mid = c.post("/models", json={"name": "g", "type": "text-generation"}).json()["data"][
+                "id"
+            ]
             batch = c.post(f"/models/{mid}/infer/batch", json={"inputs": ["a", "b", "c"]})
             assert batch.status_code == 201
             page = c.get(f"/models/{mid}/inferences?limit=2&offset=1")

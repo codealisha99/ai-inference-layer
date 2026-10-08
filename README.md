@@ -44,3 +44,10 @@ make run-rust
 make build
 make test
 ```
+
+## Project docs
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md): design, wire contract, decisions and limitations
+- [CHANGELOG.md](./CHANGELOG.md): what changed and when
+- [CONTRIBUTING.md](./CONTRIBUTING.md): setup, checks and guidelines
+- [SECURITY.md](./SECURITY.md): reporting vulnerabilities and deployment guidance
