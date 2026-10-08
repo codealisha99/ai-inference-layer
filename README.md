@@ -1,5 +1,7 @@
 # AI Inference Layer
 
+Created by [Alisha Karma](https://alishakarma.com).
+
 A model registry and inference API implemented four times (TypeScript, Go, Rust, Python) behind one HTTP contract. Register a model, run inputs against it, read the history back. The Python port is the reference implementation and the most complete.
 
 ## Implementations

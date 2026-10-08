@@ -133,6 +133,7 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
         title="AI Inference Server",
         version=__version__,
         description="A small model registry and inference API with deterministic engines.",
+        contact={"name": "Alisha Karma", "url": "https://alishakarma.com"},
         lifespan=lifespan,
     )
 

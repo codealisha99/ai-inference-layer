@@ -1,5 +1,7 @@
 # ai-inference-server-py
 
+Created by [Alisha Karma](https://alishakarma.com).
+
 Python port of the AI Inference Server: a model registry plus an inference API, built on
 FastAPI. It is wire-compatible with the TypeScript, Go and Rust ports (same routes, same
 `{success, data, error}` envelope, same status codes) and adds a few production features on top.

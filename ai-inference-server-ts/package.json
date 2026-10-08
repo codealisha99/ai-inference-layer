@@ -1,6 +1,11 @@
 {
   "name": "ai-inference-server-ts",
   "version": "1.0.0",
+  "author": {
+    "name": "Alisha Karma",
+    "url": "https://alishakarma.com"
+  },
+  "homepage": "https://alishakarma.com",
   "type": "module",
   "scripts": {
     "start": "tsx src/bin/server.ts",

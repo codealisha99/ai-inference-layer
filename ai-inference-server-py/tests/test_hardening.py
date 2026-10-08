@@ -145,3 +145,9 @@ class TestBehaviour:
 
     def test_openapi_docs_available(self, client):
         assert client.get("/openapi.json").status_code == 200
+
+
+def test_openapi_credits_the_creator(client):
+    contact = client.get("/openapi.json").json()["info"]["contact"]
+    assert contact["name"] == "Alisha Karma"
+    assert contact["url"].rstrip("/") == "https://alishakarma.com"  # pydantic adds the slash

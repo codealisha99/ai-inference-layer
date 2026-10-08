@@ -3,6 +3,7 @@ name = "ai-inference-server-py"
 version = "0.2.0"
 description = "AI Inference Server: model registry + inference API (Python port)"
 readme = "README.md"
+authors = [{ name = "Alisha Karma", email = "187989708+codealisha99@users.noreply.github.com" }]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110",
@@ -22,6 +23,10 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[project.urls]
+Homepage = "https://alishakarma.com"
+Repository = "https://github.com/codealisha99/ai-inference-layer"
 
 [project.scripts]
 ai-inference-server = "src.server:main"
