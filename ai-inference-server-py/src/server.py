@@ -6,7 +6,8 @@ import logging
 import re
 import time
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -19,8 +20,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from . import __version__
 from .config import Settings
 from .engines import ConfigError, validate_config
-from .inference import VALID_TYPES, InferenceStore, StoreFull
+from .inference import VALID_TYPES, InferenceStore, Store, StoreFull
 from .metrics import Metrics
+from .sqlite_store import SqliteStore
 
 logger = logging.getLogger("ai_inference_server")
 
@@ -98,14 +100,32 @@ def _sse(data: Any, event: str | None = None) -> str:
     return f"{prefix}data: {json.dumps(data, separators=(',', ':'))}\n\n"
 
 
-def build_app(
-    store: InferenceStore | None = None, settings: Settings | None = None
-) -> FastAPI:
-    settings = settings or Settings()
-    store = store or InferenceStore(
+def open_store(settings: Settings) -> Store:
+    """Pick the storage backend: SQLite when ``database_path`` is set, else memory."""
+    if settings.database_path:
+        return SqliteStore(
+            settings.database_path,
+            max_models=settings.max_models,
+            max_inferences_per_model=settings.max_inferences_per_model,
+        )
+    return InferenceStore(
         max_models=settings.max_models,
         max_inferences_per_model=settings.max_inferences_per_model,
     )
+
+
+def build_app(store: Store | None = None, settings: Settings | None = None) -> FastAPI:
+    settings = settings or Settings()
+    owns_store = store is None
+    store = store or open_store(settings)
+    backend = store
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        yield
+        if owns_store:  # a store passed in by the caller is the caller's to close
+            backend.close()
+
     metrics = Metrics()
     started_at = time.monotonic()
 
@@ -113,6 +133,7 @@ def build_app(
         title="AI Inference Server",
         version=__version__,
         description="A small model registry and inference API with deterministic engines.",
+        lifespan=lifespan,
     )
 
     # ---- middleware & error handling -------------------------------------------------
@@ -182,6 +203,7 @@ def build_app(
             {
                 "status": "ok",
                 "version": __version__,
+                "storage": store.kind,
                 "uptimeSeconds": round(time.monotonic() - started_at, 3),
                 **store.stats(),
             }

@@ -4,7 +4,7 @@ import threading
 import time
 import uuid
 from collections import OrderedDict
-from typing import Any
+from typing import Any, Protocol
 
 from .engines import MODEL_TYPES, run_engine
 
@@ -18,15 +18,34 @@ class StoreFull(Exception):
     """Raised when the configured model capacity is reached."""
 
 
-def _new_id() -> str:
+class Store(Protocol):
+    """What the HTTP layer needs from a backend (in-memory or SQLite)."""
+
+    kind: str
+
+    def create_model(self, name: str, type: str, config: dict[str, Any]) -> Model | None: ...
+    def get_model(self, mid: str) -> Model | None: ...
+    def list_models(self, limit: int | None = None, offset: int = 0) -> tuple[list[Model], int]: ...
+    def delete_model(self, mid: str) -> bool: ...
+    def run_inference(self, model_id: str, inp: str) -> Inference | None: ...
+    def run_batch(self, model_id: str, inputs: list[str]) -> list[Inference] | None: ...
+    def list_inferences(
+        self, model_id: str, limit: int | None = None, offset: int = 0
+    ) -> tuple[list[Inference], int] | None: ...
+    def get_inference(self, model_id: str, inference_id: str) -> dict[str, Any]: ...
+    def stats(self) -> dict[str, int]: ...
+    def close(self) -> None: ...
+
+
+def new_id() -> str:
     return uuid.uuid4().hex
 
 
-def _now_ms() -> int:
+def now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def _page(items: list[Any], limit: int | None, offset: int) -> list[Any]:
+def page(items: list[Any], limit: int | None, offset: int) -> list[Any]:
     end = None if limit is None else offset + limit
     return items[offset:end]
 
@@ -37,6 +56,8 @@ class InferenceStore:
     Memory is bounded: at most ``max_models`` models, and each model keeps its
     ``max_inferences_per_model`` most recent inferences (oldest are evicted first).
     """
+
+    kind = "memory"
 
     def __init__(self, *, max_models: int = 1_000, max_inferences_per_model: int = 1_000) -> None:
         self._max_models = max_models
@@ -53,13 +74,13 @@ class InferenceStore:
                 return None
             if len(self._models) >= self._max_models:
                 raise StoreFull("model limit reached")
-            mid = _new_id()
+            mid = new_id()
             model: Model = {
                 "id": mid,
                 "name": name,
                 "type": type,
                 "config": config,
-                "createdAt": _now_ms(),
+                "createdAt": now_ms(),
             }
             self._models[mid] = model
             self._names[name] = mid
@@ -74,7 +95,7 @@ class InferenceStore:
         """Return a page of models plus the total count."""
         with self._lock:
             items = list(self._models.values())
-        return _page(items, limit, offset), len(items)
+        return page(items, limit, offset), len(items)
 
     def delete_model(self, mid: str) -> bool:
         with self._lock:
@@ -100,17 +121,17 @@ class InferenceStore:
     def _run_locked(self, model: Model, inp: str) -> Inference:
         model_id = model["id"]
         started = time.perf_counter()
-        created = _now_ms()
+        created = now_ms()
         output = run_engine(model["type"], inp, model["config"])
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
         inf: Inference = {
-            "id": _new_id(),
+            "id": new_id(),
             "modelId": model_id,
             "input": inp,
             "status": "completed",
             "output": output,
             "createdAt": created,
-            "completedAt": _now_ms(),
+            "completedAt": now_ms(),
             "latencyMs": latency_ms,
         }
         bucket = self._inferences[model_id]
@@ -127,7 +148,7 @@ class InferenceStore:
             if bucket is None:
                 return None
             items = list(bucket.values())
-        return _page(items, limit, offset), len(items)
+        return page(items, limit, offset), len(items)
 
     def get_inference(self, model_id: str, inference_id: str) -> dict[str, Any]:
         with self._lock:
@@ -135,6 +156,9 @@ class InferenceStore:
             if bucket is None:
                 return {"modelFound": False}
             return {"modelFound": True, "inf": bucket.get(inference_id)}
+
+    def close(self) -> None:
+        """Nothing to release for the in-memory store."""
 
     def stats(self) -> dict[str, int]:
         with self._lock:

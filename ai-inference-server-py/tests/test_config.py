@@ -24,3 +24,12 @@ def test_invalid_port(monkeypatch, bad):
     monkeypatch.setenv("PORT", bad)
     with pytest.raises(ValueError, match="PORT"):
         Settings.from_env()
+
+
+def test_database_path(monkeypatch):
+    monkeypatch.delenv("DATABASE_PATH", raising=False)
+    assert Settings.from_env().database_path is None
+    monkeypatch.setenv("DATABASE_PATH", "/tmp/x.db")
+    assert Settings.from_env().database_path == "/tmp/x.db"
+    monkeypatch.setenv("DATABASE_PATH", "")
+    assert Settings.from_env().database_path is None

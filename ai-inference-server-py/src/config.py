@@ -28,6 +28,7 @@ class Settings:
     max_inferences_per_model: int = 1_000
     max_batch_size: int = 64
     api_key: str | None = None
+    database_path: str | None = None  # None -> in-memory; a path or ":memory:" -> SQLite
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -44,4 +45,5 @@ class Settings:
             ),
             max_batch_size=_int_env("MAX_BATCH_SIZE", d.max_batch_size),
             api_key=os.getenv("API_KEY") or None,
+            database_path=os.getenv("DATABASE_PATH") or None,
         )
