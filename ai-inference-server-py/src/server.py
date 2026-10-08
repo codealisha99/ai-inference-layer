@@ -20,6 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from . import __version__
+from . import openapi as docs
 from .config import Settings
 from .engines import ConfigError, validate_config
 from .inference import VALID_TYPES, InferenceStore, Store, StoreFull
@@ -27,6 +28,18 @@ from .logging_config import configure_logging
 from .metrics import Metrics
 from .middleware import BodyLimitMiddleware, BodyTooLarge
 from .ratelimit import RateLimiter
+from .schemas import (
+    BatchRequest,
+    DeletedResponse,
+    HealthResponse,
+    InferenceListResponse,
+    InferenceResponse,
+    InferRequest,
+    ModelCreate,
+    ModelListResponse,
+    ModelResponse,
+    ProbeResponse,
+)
 from .sqlite_store import SqliteStore
 
 logger = logging.getLogger("ai_inference_server")
@@ -174,10 +187,13 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
     app = FastAPI(
         title="AI Inference Server",
         version=__version__,
-        description="A small model registry and inference API with deterministic engines.",
+        description=docs.DESCRIPTION,
+        openapi_tags=docs.TAGS,
         contact={"name": "Alisha Karma", "url": "https://alishakarma.com"},
         lifespan=lifespan,
     )
+
+    docs.install(app)
 
     # ---- middleware & error handling -------------------------------------------------
     # Added first = innermost: oversized bodies surface as errors inside the logging/metrics
@@ -292,12 +308,26 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
         if model:
             metrics.observe_inferences(model["type"], n)
 
-    @app.get("/livez", tags=["operations"], summary="Liveness probe")
+    @app.get(
+        "/livez",
+        tags=["operations"],
+        summary="Liveness probe",
+        responses=docs.success(200, ProbeResponse, "The process is alive."),
+    )
     async def livez() -> dict[str, Any]:
         """The process is up and serving requests. Never touches storage."""
         return _ok({"status": "alive"})
 
-    @app.get("/readyz", tags=["operations"], summary="Readiness probe", response_model=None)
+    @app.get(
+        "/readyz",
+        tags=["operations"],
+        summary="Readiness probe",
+        response_model=None,
+        responses={
+            **docs.success(200, ProbeResponse, "Storage answers; ready for traffic."),
+            **docs.errors(503),
+        },
+    )
     async def readyz() -> JSONResponse:
         """Ready to take traffic: 200 when storage answers, 503 otherwise."""
         if store.ping():
@@ -306,7 +336,12 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
         response.headers["retry-after"] = "1"
         return response
 
-    @app.get("/health")
+    @app.get(
+        "/health",
+        tags=["operations"],
+        summary="Status, version, storage backend and counts",
+        responses=docs.success(200, HealthResponse, "Server status."),
+    )
     async def health() -> dict[str, Any]:
         return _ok(
             {
@@ -318,7 +353,17 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
             }
         )
 
-    @app.post("/models")
+    @app.post(
+        "/models",
+        tags=["models"],
+        summary="Register a model",
+        status_code=201,
+        responses={
+            **docs.success(201, ModelResponse, "The created model."),
+            **docs.errors(400, 401, 409, 413, 429, 503),
+        },
+        openapi_extra=docs.with_params(body=ModelCreate),
+    )
     async def create_model(request: Request) -> JSONResponse:
         body = await _json_object(request)
 
@@ -355,7 +400,13 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
             return _error(409, "model with that name already exists")
         return JSONResponse(status_code=201, content=_ok(model))
 
-    @app.get("/metrics", include_in_schema=False)
+    @app.get(
+        "/metrics",
+        tags=["operations"],
+        summary="Prometheus metrics",
+        response_class=PlainTextResponse,
+        responses={200: {"description": "Metrics in the Prometheus text exposition format."}},
+    )
     async def prometheus() -> PlainTextResponse:
         stats = store.stats()
         body = metrics.render(
@@ -365,7 +416,18 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
         )
         return PlainTextResponse(body, media_type="text/plain; version=0.0.4")
 
-    @app.get("/models")
+    @app.get(
+        "/models",
+        tags=["models"],
+        summary="List models",
+        responses={
+            **docs.success(
+                200, ModelListResponse, "Models in creation order.", docs.TOTAL_COUNT_HEADER
+            ),
+            **docs.errors(400, 401, 429, 503),
+        },
+        openapi_extra=docs.with_params(*docs.PAGING_PARAMS),
+    )
     async def list_models(request: Request) -> JSONResponse:
         page = _page_params(request)
         if isinstance(page, str):
@@ -373,21 +435,47 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
         items, total = store.list_models(*page)
         return _list_response(items, total)
 
-    @app.get("/models/{mid}")
-    async def get_model(mid: str) -> JSONResponse:
-        model = store.get_model(mid)
+    @app.get(
+        "/models/{model_id}",
+        tags=["models"],
+        summary="Get a model",
+        responses={
+            **docs.success(200, ModelResponse, "The model."),
+            **docs.errors(401, 404, 429, 503),
+        },
+    )
+    async def get_model(model_id: str) -> JSONResponse:
+        model = store.get_model(model_id)
         if not model:
             return _error(404, "model not found")
         return JSONResponse(content=_ok(model))
 
-    @app.delete("/models/{mid}")
-    async def delete_model(mid: str) -> JSONResponse:
-        if not store.delete_model(mid):
+    @app.delete(
+        "/models/{model_id}",
+        tags=["models"],
+        summary="Delete a model and its inference history",
+        responses={
+            **docs.success(200, DeletedResponse, "The model was removed."),
+            **docs.errors(401, 404, 429, 503),
+        },
+    )
+    async def delete_model(model_id: str) -> JSONResponse:
+        if not store.delete_model(model_id):
             return _error(404, "model not found")
-        return JSONResponse(content=_ok({"id": mid, "removed": True}))
+        return JSONResponse(content=_ok({"id": model_id, "removed": True}))
 
-    @app.post("/models/{mid}/infer")
-    async def infer(mid: str, request: Request) -> JSONResponse:
+    @app.post(
+        "/models/{model_id}/infer",
+        tags=["inference"],
+        summary="Run one input through a model",
+        status_code=201,
+        responses={
+            **docs.success(201, InferenceResponse, "The stored inference."),
+            **docs.errors(400, 401, 404, 413, 429, 503),
+        },
+        openapi_extra=docs.with_params(body=InferRequest),
+    )
+    async def infer(model_id: str, request: Request) -> JSONResponse:
         body = await _json_object(request)
         inp = body.get("input")
         if not inp:
@@ -396,14 +484,24 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
             return _error(400, "input must be a string")
         if len(inp) > settings.max_input_chars:
             return _error(413, f"input must be at most {settings.max_input_chars} characters")
-        result = store.run_inference(mid, inp)
+        result = store.run_inference(model_id, inp)
         if result is None:
             return _error(404, "model not found")
-        _count(mid)
+        _count(model_id)
         return JSONResponse(status_code=201, content=_ok(result))
 
-    @app.post("/models/{mid}/infer/batch")
-    async def infer_batch(mid: str, request: Request) -> JSONResponse:
+    @app.post(
+        "/models/{model_id}/infer/batch",
+        tags=["inference"],
+        summary="Run many inputs in one atomic request",
+        status_code=201,
+        responses={
+            **docs.success(201, InferenceListResponse, "One inference per input, in order."),
+            **docs.errors(400, 401, 404, 413, 429, 503),
+        },
+        openapi_extra=docs.with_params(body=BatchRequest),
+    )
+    async def infer_batch(model_id: str, request: Request) -> JSONResponse:
         body = await _json_object(request)
         inputs = body.get("inputs")
         if inputs is None or inputs == []:
@@ -419,16 +517,40 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
                 return _error(
                     413, f"inputs[{i}] must be at most {settings.max_input_chars} characters"
                 )
-        results = store.run_batch(mid, inputs)
+        results = store.run_batch(model_id, inputs)
         if results is None:
             return _error(404, "model not found")
-        _count(mid, len(results))
+        _count(model_id, len(results))
         return JSONResponse(status_code=201, content=_ok(results))
 
-    @app.post("/models/{mid}/infer/stream")
-    async def infer_stream(mid: str, request: Request) -> Response:
+    @app.post(
+        "/models/{model_id}/infer/stream",
+        tags=["inference"],
+        summary="Stream a text-generation result (Server-Sent Events)",
+        response_class=StreamingResponse,
+        responses={
+            200: {
+                "description": (
+                    "One `token` event per word, then a final `done` event whose data is the "
+                    "stored inference."
+                ),
+                "content": {
+                    "text/event-stream": {
+                        "schema": {"type": "string"},
+                        "example": (
+                            'event: token\ndata: {"index":0,"token":"Generated "}\n\n'
+                            'event: done\ndata: {"id":"...","status":"completed",...}\n\n'
+                        ),
+                    }
+                },
+            },
+            **docs.errors(400, 401, 404, 413, 429, 503),
+        },
+        openapi_extra=docs.with_params(body=InferRequest),
+    )
+    async def infer_stream(model_id: str, request: Request) -> Response:
         """Server-Sent Events: one ``token`` event per word, then a final ``done`` event."""
-        model = store.get_model(mid)
+        model = store.get_model(model_id)
         if model is None:
             return _error(404, "model not found")
         if model["type"] != "text-generation":
@@ -441,10 +563,10 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
             return _error(400, "input must be a string")
         if len(inp) > settings.max_input_chars:
             return _error(413, f"input must be at most {settings.max_input_chars} characters")
-        result = store.run_inference(mid, inp)
+        result = store.run_inference(model_id, inp)
         if result is None:  # model deleted between the lookup and the run
             return _error(404, "model not found")
-        _count(mid)
+        _count(model_id)
 
         async def events() -> Any:
             for index, token in enumerate(_TOKEN_RE.findall(result["output"]["text"])):
@@ -457,19 +579,41 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
             headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
         )
 
-    @app.get("/models/{mid}/inferences")
-    async def list_inferences(mid: str, request: Request) -> JSONResponse:
+    @app.get(
+        "/models/{model_id}/inferences",
+        tags=["inference"],
+        summary="List a model's inference history",
+        responses={
+            **docs.success(
+                200,
+                InferenceListResponse,
+                "Inferences, oldest first.",
+                docs.TOTAL_COUNT_HEADER,
+            ),
+            **docs.errors(400, 401, 404, 429, 503),
+        },
+        openapi_extra=docs.with_params(*docs.PAGING_PARAMS),
+    )
+    async def list_inferences(model_id: str, request: Request) -> JSONResponse:
         page = _page_params(request)
         if isinstance(page, str):
             return _error(400, page)
-        found = store.list_inferences(mid, *page)
+        found = store.list_inferences(model_id, *page)
         if found is None:
             return _error(404, "model not found")
         return _list_response(*found)
 
-    @app.get("/models/{mid}/inferences/{inference_id}")
-    async def get_inference(mid: str, inference_id: str) -> JSONResponse:
-        res = store.get_inference(mid, inference_id)
+    @app.get(
+        "/models/{model_id}/inferences/{inference_id}",
+        tags=["inference"],
+        summary="Get one inference",
+        responses={
+            **docs.success(200, InferenceResponse, "The inference."),
+            **docs.errors(401, 404, 429, 503),
+        },
+    )
+    async def get_inference(model_id: str, inference_id: str) -> JSONResponse:
+        res = store.get_inference(model_id, inference_id)
         if not res["modelFound"]:
             return _error(404, "model not found")
         if not res.get("inf"):

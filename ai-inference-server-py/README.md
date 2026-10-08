@@ -99,6 +99,10 @@ All responses use the envelope `{"success": bool, "data": ..., "error": string |
 Paginated endpoints return the full total in the `X-Total-Count` header. Without `limit`
 every item is returned, as in the other ports.
 
+The API is fully described at `/openapi.json` (rendered at `/docs` and `/redoc`): request bodies,
+response schemas, query parameters and every error status for each route. The tests validate
+real responses against those schemas, so the documentation cannot drift from the behaviour.
+
 ### Model types
 
 | Type | Output | Config |

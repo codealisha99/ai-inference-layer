@@ -126,7 +126,8 @@ class TestMetrics:
         assert r.headers["content-type"].startswith("text/plain")
         body = r.text
         assert (
-            'http_requests_total{method="POST",route="/models/{mid}/infer",status="201"} 1' in body
+            'http_requests_total{method="POST",route="/models/{model_id}/infer",status="201"} 1'
+            in body
         )
         assert 'status="404"' in body
         assert 'inferences_total{model_type="text-generation"} 1' in body
