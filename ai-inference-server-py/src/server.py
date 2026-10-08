@@ -26,6 +26,7 @@ from .inference import VALID_TYPES, InferenceStore, Store, StoreFull
 from .logging_config import configure_logging
 from .metrics import Metrics
 from .middleware import BodyLimitMiddleware, BodyTooLarge
+from .ratelimit import RateLimiter
 from .sqlite_store import SqliteStore
 
 logger = logging.getLogger("ai_inference_server")
@@ -43,6 +44,7 @@ _SECURITY_HEADERS = {
     "x-frame-options": "DENY",
     "referrer-policy": "no-referrer",
 }
+_UNLIMITED_PATHS = frozenset({"/metrics"})  # scrapers poll this; auth already protects it
 _CORS_HEADERS = ["authorization", "content-type", "x-api-key", "x-request-id"]
 _PUBLIC_PREFIXES = ("/assets/",)  # landing page assets; never need an API key
 
@@ -74,6 +76,21 @@ async def _json_object(request: Request) -> dict[str, Any]:
     except Exception:
         return {}
     return body if isinstance(body, dict) else {}
+
+
+def _client_id(request: Request, trust_proxy: bool) -> str:
+    """Identify the caller for rate limiting: peer address, or the last proxy-added hop."""
+    if trust_proxy:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        hops = [h.strip() for h in forwarded.split(",") if h.strip()]
+        if hops:
+            return hops[-1]
+    return request.client.host if request.client else "unknown"
+
+
+def _is_exempt(path: str) -> bool:
+    """Probes, docs, the landing page and metrics are never rate limited."""
+    return _is_public(path) or path in _UNLIMITED_PATHS
 
 
 def _is_static(path: str) -> bool:
@@ -147,6 +164,11 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
             backend.close()
 
     metrics = Metrics()
+    limiter = (
+        RateLimiter(settings.rate_limit_per_minute, settings.rate_limit_burst)
+        if settings.rate_limit_per_minute
+        else None
+    )
     started_at = time.monotonic()
 
     app = FastAPI(
@@ -169,12 +191,27 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
         supplied_id = request.headers.get("x-request-id", "")
         request_id = supplied_id if _REQUEST_ID_RE.match(supplied_id) else uuid.uuid4().hex
         start = time.perf_counter()
-        if (
+        limit_headers: dict[str, str] = {}
+        limited = False
+        path = request.url.path
+        if limiter is not None and request.method != "OPTIONS" and not _is_exempt(path):
+            decision = limiter.check(_client_id(request, settings.trust_proxy))
+            limit_headers = {
+                "x-ratelimit-limit": str(decision.limit),
+                "x-ratelimit-remaining": str(decision.remaining),
+                "x-ratelimit-reset": str(decision.reset),
+            }
+            if not decision.allowed:
+                limited = True
+                limit_headers["retry-after"] = str(decision.retry_after)
+        if limited:
+            response: Response = _error(429, "rate limit exceeded")
+        elif (
             settings.api_key
             and not _is_public(request.url.path)
             and not _authorized(request, settings.api_key)
         ):
-            response: Response = _error(401, "unauthorized")
+            response = _error(401, "unauthorized")
             response.headers["www-authenticate"] = "Bearer"
         else:
             try:
@@ -186,6 +223,8 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
         elapsed_ms = elapsed * 1000
         route = getattr(request.scope.get("route"), "path", "unmatched")
         metrics.observe_request(request.method, route, response.status_code, elapsed)
+        for name, value in limit_headers.items():
+            response.headers[name] = value
         response.headers["x-request-id"] = request_id
         response.headers["x-response-time-ms"] = f"{elapsed_ms:.2f}"
         for name, value in _SECURITY_HEADERS.items():

@@ -17,6 +17,10 @@ def _int_env(name: str, default: int) -> int:
     return value
 
 
+def _opt_int_env(name: str) -> int | None:
+    return _int_env(name, 0) if os.getenv(name) else None
+
+
 def _choice_env(name: str, default: str, choices: tuple[str, ...]) -> str:
     value = os.getenv(name, default).lower()
     if value not in choices:
@@ -37,6 +41,9 @@ class Settings:
     max_body_bytes: int = 4 * 1024 * 1024
     log_format: str = "text"  # "text" or "json"
     cors_origins: tuple[str, ...] = ()  # empty -> CORS disabled; ("*",) -> any origin
+    rate_limit_per_minute: int | None = None  # None -> no rate limiting
+    rate_limit_burst: int | None = None  # None -> same as the per-minute rate
+    trust_proxy: bool = False  # key clients by the last X-Forwarded-For hop
     api_key: str | None = None
     database_path: str | None = None  # None -> in-memory; a path or ":memory:" -> SQLite
 
@@ -59,6 +66,9 @@ class Settings:
             cors_origins=tuple(
                 o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()
             ),
+            rate_limit_per_minute=_opt_int_env("RATE_LIMIT_PER_MINUTE"),
+            rate_limit_burst=_opt_int_env("RATE_LIMIT_BURST"),
+            trust_proxy=os.getenv("TRUST_PROXY", "").lower() in ("1", "true", "yes"),
             api_key=os.getenv("API_KEY") or None,
             database_path=os.getenv("DATABASE_PATH") or None,
         )

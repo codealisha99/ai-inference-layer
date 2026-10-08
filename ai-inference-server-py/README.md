@@ -129,6 +129,20 @@ curl -sN -XPOST localhost:3000/models/$GEN/infer/stream -H 'content-type: applic
 # event: token / data: {"index":0,"token":"Generated "} ... event: done / data: {<inference>}
 ```
 
+### Rate limiting
+
+Set `RATE_LIMIT_PER_MINUTE` to enable a token bucket per client (default: off). Each request costs
+one token, and the bucket holds `RATE_LIMIT_BURST` tokens that refill continuously. Responses carry
+`X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`; a blocked request gets `429`
+with `Retry-After`. The check runs before authentication, so repeated wrong-key guesses are
+throttled too. `/health`, `/livez`, `/readyz`, `/metrics`, the docs and the landing page are never
+limited.
+
+Clients are identified by their peer address. Behind a reverse proxy, set `TRUST_PROXY=true` so the
+address the proxy appended to `X-Forwarded-For` is used instead (never enable it when clients can
+reach the server directly, since they could then choose their own identity). Bucket state is per
+process and bounded to 10,000 clients.
+
 ### Errors
 
 | Status | When |
@@ -139,7 +153,7 @@ curl -sN -XPOST localhost:3000/models/$GEN/infer/stream -H 'content-type: applic
 | 405 | Method not allowed |
 | 409 | Model name already exists (names are trimmed) |
 | 413 | Input longer than `MAX_INPUT_CHARS`, or request body larger than `MAX_BODY_BYTES` |
-| 429 | `MAX_MODELS` reached |
+| 429 | Rate limit exceeded (sent with `Retry-After`), or `MAX_MODELS` reached |
 | 500 | Unexpected error (details are logged, never returned) |
 | 503 | Storage is temporarily unavailable (sent with `Retry-After`) |
 
@@ -164,6 +178,9 @@ Every response carries `X-Request-ID` (echoed from the request if it is 1-128 ch
 | `MAX_BATCH_SIZE` | `64` | Max inputs per batch request |
 | `MAX_BODY_BYTES` | `4194304` | Max request body size, enforced while reading (covers chunked uploads) |
 | `LOG_FORMAT` | `text` | `text`, or `json` for one structured object per line (request id, method, path, status, duration) |
+| `RATE_LIMIT_PER_MINUTE` | unset | Enable per-client rate limiting at this sustained rate. Unset disables it |
+| `RATE_LIMIT_BURST` | = per-minute rate | Bucket size: how many requests a client may send at once |
+| `TRUST_PROXY` | `false` | Key clients by the last `X-Forwarded-For` hop (set only behind a proxy that appends it) |
 | `CORS_ORIGINS` | unset | Comma-separated allowed browser origins (`*` for any). Unset disables CORS |
 
 Invalid values fail fast at startup.
