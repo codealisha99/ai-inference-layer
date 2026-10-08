@@ -13,7 +13,7 @@ jobs:
       run:
         working-directory: ai-inference-server-ts
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -30,7 +30,7 @@ jobs:
       run:
         working-directory: ai-inference-server-go
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
@@ -44,7 +44,7 @@ jobs:
       run:
         working-directory: ai-inference-server-rust
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -62,7 +62,7 @@ jobs:
       run:
         working-directory: ai-inference-server-py
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
@@ -85,7 +85,7 @@ jobs:
     name: Python — docker build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build -t ai-inference-server-py ai-inference-server-py
       - name: Smoke test (health, landing page, persistence across restart)
         run: |
