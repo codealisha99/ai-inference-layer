@@ -1,4 +1,4 @@
-.PHONY: build test clean build-ts build-go build-rust build-py test-ts test-go test-rust test-py
+.PHONY: build test clean demo-py build-ts build-go build-rust build-py test-ts test-go test-rust test-py
 
 build: build-ts build-go build-rust build-py
 
@@ -39,6 +39,9 @@ run-rust:
 
 run-py:
 	cd ai-inference-server-py && python -m src.server
+
+demo-py:
+	cd ai-inference-server-py && python -m src.cli demo
 
 clean:
 	cd ai-inference-server-ts && rm -rf dist node_modules 2>/dev/null || true

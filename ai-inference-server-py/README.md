@@ -9,17 +9,69 @@ FastAPI. It is wire-compatible with the TypeScript, Go and Rust ports (same rout
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-python -m src.server            # http://localhost:3000  (landing page at /, API docs at /docs)
+
+ais serve --db ./data/ai.db     # http://localhost:3000, data persists in SQLite
+ais demo                        # in another terminal: creates sample models and runs them
 ```
 
-State is in memory by default. Set `DATABASE_PATH=./data/ai.db` to persist everything to SQLite.
+`ais serve` without `--db` keeps everything in memory. Open `http://localhost:3000/` for the
+landing page and live playground, or `/docs` for the interactive API reference.
 
-Or with Docker:
+With Docker (data persists in a volume):
 
 ```bash
-docker build -t ai-inference-server-py .
-docker run --rm -p 3000:3000 -v ais-data:/data ai-inference-server-py   # persists to /data
+docker compose up --build
+# or: docker build -t ai-inference-server-py . && docker run --rm -p 3000:3000 -v ais-data:/data ai-inference-server-py
 ```
+
+## Using it
+
+### Command line: `ais`
+
+```bash
+ais models create sentiment --type text-classification
+ais models create vectors   --type embedding --config '{"dimensions": 64}'
+ais models create writer    --type text-generation
+ais models list
+
+ais infer sentiment "this is not bad at all"          # positive (0.73)
+echo "I love it" | ais infer sentiment                # input from stdin
+ais infer writer "once upon a time" --stream          # tokens print as they arrive
+ais batch sentiment "great" "awful" "a table"         # one request, many inputs
+ais batch sentiment -f reviews.txt                    # one input per line
+ais history sentiment --limit 10
+ais health
+```
+
+Models can be referenced by name or id. Add `--json` to any command for raw JSON (handy with
+`jq`). Point it at another server with `--url` / `AIS_URL`, and pass a key with `--api-key` /
+`AIS_API_KEY`. Exit codes: `0` ok, `1` the server returned an error, `2` the server is
+unreachable.
+
+### From Python
+
+The client has no dependencies beyond the standard library.
+
+```python
+from src.client import Client
+
+ais = Client("http://localhost:3000")        # api_key="..." if the server requires one
+model = ais.create_model("sentiment", "text-classification")
+
+ais.infer(model["id"], "this is not bad at all")["output"]   # {'label': 'positive', 'score': 0.7311}
+ais.batch(model["id"], ["great", "awful"])                   # list of inferences
+
+writer = ais.create_model("writer", "text-generation")
+for token in ais.stream_text(writer["id"], "hello world"):   # tokens as they arrive
+    print(token, end="")
+page = ais.list_inferences(model["id"], limit=10)            # page.total is the overall count
+```
+
+Errors raise `ApiError` (with `.status` and `.message`) or `ServerUnreachable`.
+
+### From anything else
+
+It is plain HTTP and JSON, so `curl` works too. See the API reference below.
 
 ## API
 
@@ -118,6 +170,8 @@ Layout:
 
 ```
 src/
+  cli.py        `ais` command line
+  client.py     Dependency-free Python client
   server.py     FastAPI app, routes, middleware, error handling
   inference.py  Store protocol and the thread-safe, bounded in-memory store
   sqlite_store.py  Durable SQLite store with the same semantics
@@ -125,7 +179,8 @@ src/
   metrics.py    Prometheus text exposition
   config.py     Environment-driven settings
   static/       Landing page (served at / and /assets)
-tests/          Unit and API tests (HTTP contract, both stores, engines, auth, SSE, metrics)
+tests/          Unit, API and end-to-end tests (HTTP contract, both stores, engines, auth,
+                SSE, metrics, and the client and CLI against a real running server)
 ```
 
 ### Persistence

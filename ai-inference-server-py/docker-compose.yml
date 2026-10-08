@@ -1,0 +1,15 @@
+# docker compose up --build    ->  http://localhost:3000  (data persists in the ais-data volume)
+services:
+  server:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # API_KEY: change-me          # uncomment to require a key (X-API-Key or Bearer)
+      LOG_LEVEL: info
+    volumes:
+      - ais-data:/data
+    restart: unless-stopped
+
+volumes:
+  ais-data:

@@ -26,6 +26,10 @@ Model types: `text-generation`, `text-classification`, `embedding`. See [ARCHITE
 ## Quick start
 
 ```bash
+cd ai-inference-server-py && pip install -e ".[dev]"
+ais serve --db ./data/ai.db   # Python port with persistence; then in another terminal:
+ais demo                      # create sample models and run them (see the Python README)
+
 make run-py     # http://localhost:3000, interactive docs at /docs
 make run-ts
 make run-go
