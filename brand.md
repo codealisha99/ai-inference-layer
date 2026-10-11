@@ -1,6 +1,6 @@
 # Inference design system
 
-Inference is a developer workbench for the existing model registry and deterministic inference API. Its interface prioritizes a readable request, an inspectable response, and honest operational status. Alisha Karma appears only as the creator, with the supplied personal website, GitHub, and X links.
+Inference is the web workbench for AI Inference Layer's model registry and deterministic inference API. Its interface prioritizes a readable request, an inspectable response, and honest operational status. Alisha Karma appears as the maintainer, with the supplied personal website, GitHub, X, and contact links. Historical contributors remain credited in Git history.
 
 The visual direction is restrained technical clarity: blue ink, cool neutral surfaces, local typography, compact layouts, and a dark response panel. No fabricated social proof, decorative gradients, or account features.
 

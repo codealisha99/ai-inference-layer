@@ -15,7 +15,8 @@ readiness settings. Run `npm ci`, `railway config plan`, and
 `railway config apply --yes` when changing infrastructure. Secrets remain
 unmanaged by this configuration.
 Vercel builds the shared static interface with `scripts/build_frontend.py` and
-forwards API and documentation routes to Railway. The app runs deterministic
+builds the playground, Swagger, and ReDoc with one shared shell. API requests and
+the OAuth redirect route are forwarded to Railway. The app runs deterministic
 local engines; it does not call a hosted LLM provider.
 
 ## Configuration
@@ -30,6 +31,11 @@ available for local development.
 The playground is a public demo with rate limiting. Set Railway's `API_KEY` to
 require credentials for model and inference operations; the interface will
 prompt visitors for that key. Probes and documentation stay public.
+
+The PostgreSQL store reconnects before the next operation when its connection is
+closed. It does not replay failed queries or writes. An operation interrupted by
+a disconnect may return 503; a subsequent readiness check can establish a fresh
+connection. Explicit shutdown does not reopen the store.
 
 ## Releases and checks
 

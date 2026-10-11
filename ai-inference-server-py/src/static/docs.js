@@ -7,8 +7,9 @@
   const content = document.querySelector("#api-reference");
   const keyInput = document.querySelector("#docs-key");
   const value = (token) => getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+  const path = location.pathname.replace(/\/index\.html$/, "").replace(/\/$/, "");
   document.querySelectorAll(".docs-tabs a").forEach((link) => {
-    if (link.getAttribute("href") === location.pathname) link.setAttribute("aria-current", "page");
+    if (link.getAttribute("href") === path) link.setAttribute("aria-current", "page");
   });
   if (kind === "redoc") document.querySelector("#docs-key-wrap").hidden = true;
   const enableViewerKeyboardAccess = () => {

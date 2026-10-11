@@ -5,7 +5,11 @@
     "name": "Alisha Karma",
     "url": "https://alishakarma.com"
   },
-  "homepage": "https://alishakarma.com",
+  "homepage": "https://github.com/codealisha99/ai-inference-layer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codealisha99/ai-inference-layer.git"
+  },
   "type": "module",
   "scripts": {
     "start": "tsx src/bin/server.ts",

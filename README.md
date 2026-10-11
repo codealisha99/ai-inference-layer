@@ -1,14 +1,20 @@
 # AI Inference Layer
 
-Created by [Alisha Karma](https://alishakarma.com).
+Maintained by [Alisha Karma](https://alishakarma.com) ([codealisha99](https://github.com/codealisha99)). Historical contributors remain credited in Git history.
 
 A model registry and inference API implemented four times (TypeScript, Go, Rust, Python) behind one HTTP contract. Register a model, run inputs against it, read the history back. The Python port is the reference implementation and the most complete.
 
-## Live deployment
+The web workbench is named **Inference**. Its classification, generation, and embedding engines are deterministic reference implementations for integration testing; they do not call a hosted language model.
+
+## Deployment endpoints
 
 - Website and playground: https://ai-inference-layer.vercel.app
 - API and Swagger: https://api-production-c6510.up.railway.app/docs
 - Storage: dedicated Neon PostgreSQL project in Singapore.
+
+Read-only audit on 2026-10-11: the website responded, but its `/health` and the
+Railway `/readyz` endpoint returned HTTP 503. The PostgreSQL connection-recovery fix
+was verified locally; live recovery must be checked after release. See [DESIGN_AUDIT.md](./DESIGN_AUDIT.md).
 
 The Vercel site proxies API requests to Railway, so the playground uses the same
 persistent database as direct API clients. Pushes to `main` deploy through the

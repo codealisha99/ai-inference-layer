@@ -27,15 +27,15 @@
     },
     {
       "source": "/docs",
-      "destination": "https://api-production-c6510.up.railway.app/docs"
+      "destination": "/docs/index.html"
     },
     {
-      "source": "/docs/:path*",
-      "destination": "https://api-production-c6510.up.railway.app/docs/:path*"
+      "source": "/docs/oauth2-redirect",
+      "destination": "https://api-production-c6510.up.railway.app/docs/oauth2-redirect"
     },
     {
       "source": "/redoc",
-      "destination": "https://api-production-c6510.up.railway.app/redoc"
+      "destination": "/redoc/index.html"
     },
     {
       "source": "/openapi.json",

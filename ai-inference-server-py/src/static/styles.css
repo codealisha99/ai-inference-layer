@@ -145,6 +145,7 @@ textarea { resize: vertical; min-height: 9rem; line-height: 1.6; }
 textarea:hover, .key input:hover { border-color: var(--text-secondary); }
 textarea:focus-visible, .key input:focus-visible { border-color: var(--focus); }
 textarea[aria-invalid="true"] { border-color: var(--error); }
+textarea:read-only, .key input:read-only { background: var(--surface-muted); }
 textarea::placeholder, input::placeholder { color: var(--text-muted); opacity: 1; }
 .helper { font-size: var(--text-xs); color: var(--text-muted); margin-top: var(--space-2); }
 .key { margin-top: var(--space-4); display: grid; gap: var(--space-2); font-size: var(--text-sm); }
@@ -205,6 +206,9 @@ textarea::placeholder, input::placeholder { color: var(--text-muted); opacity: 1
 .footer-bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); padding-block: var(--space-5); border-top: var(--border-width) solid var(--border); font-size: var(--text-xs); }
 .footer-bottom p a { color: var(--text); text-decoration: underline; text-underline-offset: .2em; }
 .footer-bottom nav { flex-direction: row; flex-wrap: wrap; gap: var(--space-5); }
+.not-found { padding-block: var(--space-16); min-height: 55vh; }
+.not-found h1 { font-size: var(--text-display); line-height: 1.15; }
+.not-found p { max-width: 55ch; color: var(--text-secondary); margin-block: var(--space-6); }
 
 @media (max-width: 1023px) {
   .bar { gap: var(--space-6); }

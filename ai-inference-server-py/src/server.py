@@ -177,7 +177,14 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
     )
 
     @app.exception_handler(StarletteHTTPException)
-    async def http_error(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    async def http_error(request: Request, exc: StarletteHTTPException) -> Response:
+        if (
+            exc.status_code == 404
+            and request.method == "GET"
+            and "text/html" in request.headers.get("accept", "")
+            and not request.url.path.startswith(("/models", "/assets"))
+        ):
+            return HTMLResponse(render_page("404.html"), status_code=404)
         message = _HTTP_MESSAGES.get(exc.status_code) or str(exc.detail)
         return _error(exc.status_code, message)
 
