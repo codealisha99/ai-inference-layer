@@ -3,9 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "python3 scripts/build_frontend.py"
+    "build": "python3 scripts/build_frontend.py",
+    "test:ui": "playwright test"
   },
   "dependencies": {
     "railway": "^3.13.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.64.0"
   }
 }

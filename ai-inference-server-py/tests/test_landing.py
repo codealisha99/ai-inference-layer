@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
@@ -47,7 +48,7 @@ class TestLandingPage:
         refs = re.findall(r'(?:href|src)="(/assets/[^"]+)"', html)
         assert refs
         for ref in refs:
-            assert Path(STATIC_DIR, ref.removeprefix("/assets/")).is_file(), ref
+            assert Path(STATIC_DIR, urlsplit(ref).path.removeprefix("/assets/")).is_file(), ref
 
     def test_page_links_resolve(self, client):
         html = client.get("/").text
@@ -69,3 +70,23 @@ class TestLandingWithApiKey:
     def test_api_still_requires_key(self, secured):
         assert secured.get("/models").status_code == 401
         assert secured.get("/models", headers={"x-api-key": "s3cret"}).status_code == 200
+
+
+@pytest.mark.parametrize("path", ["/", "/docs", "/redoc"])
+def test_shared_shell_and_versioned_assets(client, path):
+    page = client.get(path).text
+    assert '<header class="header">' in page
+    assert '<footer class="footer">' in page
+    assert "<!-- site-" not in page
+    assert "__DOCS_" not in page
+    references = re.findall(r'(?:href|src)="(/assets/[^"]+)"', page)
+    assert references
+    for reference in references:
+        assert "?v=" in reference
+        assert client.get(reference).status_code == 200
+
+
+def test_documentation_routes_stay_out_of_api_contract(client):
+    paths = client.get("/openapi.json").json()["paths"]
+    assert not {"/docs", "/redoc", "/docs/oauth2-redirect"} & set(paths)
+    assert client.get("/docs/oauth2-redirect").status_code == 200

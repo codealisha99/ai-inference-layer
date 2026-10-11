@@ -13,7 +13,8 @@ from typing import Any
 import psycopg
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.openapi.docs import get_swagger_ui_oauth2_redirect_html
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
@@ -41,6 +42,7 @@ from .schemas import (
     ProbeResponse,
 )
 from .sqlite_store import SqliteStore
+from .web import render_page
 
 logger = logging.getLogger("ai_inference_server")
 
@@ -150,6 +152,8 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
 
     app = FastAPI(
         title="AI Inference Server",
+        docs_url=None,
+        redoc_url=None,
         version=__version__,
         description=docs.DESCRIPTION,
         openapi_tags=docs.TAGS,
@@ -210,8 +214,20 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
     app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 
     @app.get("/", include_in_schema=False)
-    async def landing() -> FileResponse:
-        return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
+    async def landing() -> HTMLResponse:
+        return HTMLResponse(render_page("index.html"))
+
+    @app.get("/docs", include_in_schema=False)
+    async def swagger() -> HTMLResponse:
+        return HTMLResponse(render_page("docs.html"))
+
+    @app.get("/docs/oauth2-redirect", include_in_schema=False)
+    async def oauth2_redirect() -> HTMLResponse:
+        return get_swagger_ui_oauth2_redirect_html()
+
+    @app.get("/redoc", include_in_schema=False)
+    async def redoc() -> HTMLResponse:
+        return HTMLResponse(render_page("docs.html", docs_kind="redoc"))
 
     # ---- routes ----------------------------------------------------------------------
 
