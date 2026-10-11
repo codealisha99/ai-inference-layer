@@ -6,7 +6,6 @@ export const partial = "api";
 export default defineRailway(() => {
   const api = service("api", {
     build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
-    deploy: { restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 10 },
     source: github("codealisha99/ai-inference-layer", { branch: "main", checkSuites: false }),
     healthcheck: "/readyz",
     healthcheckTimeout: 120,
