@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+import psycopg
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
@@ -25,6 +26,7 @@ from .inference import VALID_TYPES, InferenceStore, Store, StoreFull
 from .logging_config import configure_logging
 from .metrics import Metrics
 from .middleware import BodyLimitMiddleware, BodyTooLarge, RequestContextMiddleware
+from .postgres_store import PostgresStore
 from .ratelimit import RateLimiter
 from .schemas import (
     BatchRequest,
@@ -106,7 +108,14 @@ def _sse(data: Any, event: str | None = None) -> str:
 
 
 def open_store(settings: Settings) -> Store:
-    """Pick the storage backend: SQLite when ``database_path`` is set, else memory."""
+    """Select PostgreSQL, SQLite, or memory, in that order."""
+    if settings.database_url:
+        return PostgresStore(
+            settings.database_url,
+            settings.database_url_unpooled,
+            max_models=settings.max_models,
+            max_inferences_per_model=settings.max_inferences_per_model,
+        )
     if settings.database_path:
         return SqliteStore(
             settings.database_path,
@@ -172,8 +181,11 @@ def build_app(store: Store | None = None, settings: Settings | None = None) -> F
     async def body_too_large(_request: Request, exc: BodyTooLarge) -> JSONResponse:
         return _error(413, str(exc))
 
+    @app.exception_handler(psycopg.Error)
     @app.exception_handler(sqlite3.Error)
-    async def storage_unavailable(_request: Request, exc: sqlite3.Error) -> JSONResponse:
+    async def storage_unavailable(
+        _request: Request, exc: sqlite3.Error | psycopg.Error
+    ) -> JSONResponse:
         logger.error("storage error: %s", exc)
         response = _error(503, "storage temporarily unavailable")
         response.headers["retry-after"] = "1"

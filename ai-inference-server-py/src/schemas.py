@@ -94,7 +94,7 @@ class Deleted(BaseModel):
 class Health(BaseModel):
     status: Literal["ok"]
     version: str
-    storage: Literal["memory", "sqlite"]
+    storage: Literal["memory", "sqlite", "postgres"]
     uptimeSeconds: float
     models: int
     inferences: int
@@ -102,7 +102,7 @@ class Health(BaseModel):
 
 class Probe(BaseModel):
     status: Literal["alive", "ready"]
-    storage: Literal["memory", "sqlite"] | None = None
+    storage: Literal["memory", "sqlite", "postgres"] | None = None
 
 
 # ---- the {success, data, error} envelope ---------------------------------------------

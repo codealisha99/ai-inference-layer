@@ -4,6 +4,16 @@ Created by [Alisha Karma](https://alishakarma.com).
 
 A model registry and inference API implemented four times (TypeScript, Go, Rust, Python) behind one HTTP contract. Register a model, run inputs against it, read the history back. The Python port is the reference implementation and the most complete.
 
+## Live deployment
+
+- Website and playground: https://ai-inference-layer.vercel.app
+- API and Swagger: https://api-production-c6510.up.railway.app/docs
+- Storage: dedicated Neon PostgreSQL project in Singapore.
+
+The Vercel site proxies API requests to Railway, so the playground uses the same
+persistent database as direct API clients. Pushes to `main` deploy through the
+connected GitHub repository. See [DEPLOYMENT.md](./DEPLOYMENT.md) for configuration.
+
 ## Implementations
 
 | Language | Directory | Stack | Notes |

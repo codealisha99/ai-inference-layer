@@ -19,3 +19,11 @@ htmlcov/
 *.db-wal
 *.db-shm
 *.zip
+
+# deployment links and credentials
+.vercel/
+.env
+.env.*
+.neon
+
+/public/

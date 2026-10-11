@@ -47,6 +47,9 @@ class Settings:
     api_key: str | None = None
     database_path: str | None = None  # None -> in-memory; a path or ":memory:" -> SQLite
 
+    database_url: str | None = None
+    database_url_unpooled: str | None = None
+
     @classmethod
     def from_env(cls) -> Settings:
         d = cls()
@@ -71,4 +74,6 @@ class Settings:
             trust_proxy=os.getenv("TRUST_PROXY", "").lower() in ("1", "true", "yes"),
             api_key=os.getenv("API_KEY") or None,
             database_path=os.getenv("DATABASE_PATH") or None,
+            database_url=os.getenv("DATABASE_URL") or None,
+            database_url_unpooled=os.getenv("DATABASE_URL_UNPOOLED") or None,
         )

@@ -1,0 +1,14 @@
+ai-inference-server-py/.venv/
+ai-inference-server-py/tests/
+ai-inference-server-py/.env*
+ai-inference-server-py/.coverage
+ai-inference-server-py/.pytest_cache/
+ai-inference-server-py/.mypy_cache/
+ai-inference-server-py/.ruff_cache/
+**/__pycache__/
+ai-inference-server-ts/
+ai-inference-server-go/
+ai-inference-server-rust/
+*.zip
+.neon
+.env*

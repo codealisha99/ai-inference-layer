@@ -1,0 +1,11 @@
+{
+  "name": "ai-inference-layer-deployment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "python3 scripts/build_frontend.py"
+  },
+  "dependencies": {
+    "railway": "^3.13.1"
+  }
+}
