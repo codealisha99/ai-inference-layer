@@ -90,3 +90,16 @@ def test_documentation_routes_stay_out_of_api_contract(client):
     paths = client.get("/openapi.json").json()["paths"]
     assert not {"/docs", "/redoc", "/docs/oauth2-redirect"} & set(paths)
     assert client.get("/docs/oauth2-redirect").status_code == 200
+
+
+def test_browser_404_preserves_machine_readable_errors(client):
+    page = client.get("/missing-page", headers={"accept": "text/html"})
+    assert page.status_code == 404
+    assert "Page not found" in page.text
+    assert '<header class="header">' in page.text
+    for path in ("/missing-page", "/models/missing", "/assets/missing.css"):
+        response = client.get(
+            path, headers={"accept": "text/html" if path != "/missing-page" else "application/json"}
+        )
+        assert response.status_code == 404
+        assert response.json()["success"] is False

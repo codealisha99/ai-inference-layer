@@ -18,6 +18,7 @@
   const models = new Map();
   let responseText = "";
   let busy = false;
+  let requestKey = "";
   const engines = {
     "text-classification": { hint: "Read sentiment as a label and a score.", placeholder: "Enter text to classify…" },
     "text-generation": { hint: "Get a deterministic text response for your integration.", placeholder: "Enter a prompt…" },
@@ -57,7 +58,7 @@
     $("#req-line").textContent = `${method} ${path}`;
     const headers = {};
     if (body) headers["content-type"] = "application/json";
-    if (keyInput.value.trim()) headers["x-api-key"] = keyInput.value.trim();
+    if (requestKey) headers["x-api-key"] = requestKey;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
@@ -131,6 +132,7 @@
     copyButton.disabled = !responseText;
   }
   copyButton.addEventListener("click", () => copy(copyButton, responseText));
+  copyButton.addEventListener("copycomplete", () => { copyButton.disabled = busy || !responseText; });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (busy) return;
@@ -145,7 +147,10 @@
       return;
     }
     const type = form.querySelector('input[name="type"]:checked').value;
+    requestKey = keyInput.value.trim();
     busy = true;
+    input.readOnly = true;
+    keyInput.readOnly = true;
     run.disabled = true;
     run.textContent = "Running…";
     radios.forEach((radio) => { radio.disabled = true; });
@@ -190,6 +195,8 @@
       announce(message);
     } finally {
       busy = false;
+      input.readOnly = false;
+      keyInput.readOnly = false;
       run.disabled = false;
       run.textContent = "Run inference";
       radios.forEach((radio) => { radio.disabled = false; });

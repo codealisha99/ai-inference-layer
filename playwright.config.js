@@ -19,6 +19,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: [
+    { command: 'npm run build && python3 -m http.server 3127 --bind 127.0.0.1 --directory public', url: 'http://127.0.0.1:3127', reuseExistingServer: false },
     { command: 'uv run --directory ai-inference-server-py python -m src.server', url: 'http://127.0.0.1:3125/health', env: { ...testEnvironment, PORT: '3125', API_KEY: '' }, reuseExistingServer: false },
     { command: 'uv run --directory ai-inference-server-py python -m src.server', url: 'http://127.0.0.1:3126/health', env: { ...testEnvironment, PORT: '3126', API_KEY: 'local-ui-test-key' }, reuseExistingServer: false },
   ],

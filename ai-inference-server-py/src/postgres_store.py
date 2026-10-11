@@ -94,12 +94,17 @@ class PostgresStore:
         self._max_models = max_models
         self._max_inferences = max_inferences_per_model
         self._lock = threading.RLock()
+        self._url = url
+        self._closed = False
         # Use a direct connection for DDL, and the pooled URL for application queries.
         with psycopg.connect(migration_url or url, connect_timeout=15) as db:
             db.execute("SELECT pg_advisory_xact_lock(1791489234)")
             db.execute(_SCHEMA)
-        self._conn = psycopg.connect(
-            url,
+        self._conn = self._connect()
+
+    def _connect(self) -> psycopg.Connection[dict[str, Any]]:
+        return psycopg.connect(
+            self._url,
             autocommit=True,
             row_factory=dict_row,
             connect_timeout=15,
@@ -107,14 +112,25 @@ class PostgresStore:
         )
 
     @contextmanager
-    def _tx(self) -> Iterator[psycopg.Connection[dict[str, Any]]]:
-        with self._lock, self._conn.transaction():
-            # Serialize writes across replicas to enforce name, capacity and history limits.
-            self._conn.execute("SELECT pg_advisory_xact_lock(1791489234)")
+    def _connection(self) -> Iterator[psycopg.Connection[dict[str, Any]]]:
+        with self._lock:
+            if self._closed:
+                raise psycopg.OperationalError("store is closed")
+            if self._conn.closed:
+                # Recover on the next operation; never replay a possibly committed write.
+                self._conn = self._connect()
             yield self._conn
+
+    @contextmanager
+    def _tx(self) -> Iterator[psycopg.Connection[dict[str, Any]]]:
+        with self._connection() as db, db.transaction():
+            # Serialize writes across replicas to enforce name, capacity and history limits.
+            db.execute("SELECT pg_advisory_xact_lock(1791489234)")
+            yield db
 
     def close(self) -> None:
         with self._lock:
+            self._closed = True
             self._conn.close()
 
     # ---- models ----------------------------------------------------------------------
@@ -136,14 +152,14 @@ class PostgresStore:
         return {"id": mid, "name": name, "type": type, "config": config, "createdAt": created}
 
     def get_model(self, mid: str) -> Model | None:
-        with self._lock:
-            row = self._conn.execute("SELECT * FROM models WHERE id = %s", (mid,)).fetchone()
+        with self._connection() as db:
+            row = db.execute("SELECT * FROM models WHERE id = %s", (mid,)).fetchone()
         return _model(row) if row else None
 
     def list_models(self, limit: int | None = None, offset: int = 0) -> tuple[list[Model], int]:
-        with self._lock:
-            total = _count(self._conn.execute("SELECT COUNT(*) AS count FROM models"))
-            rows = self._conn.execute(
+        with self._connection() as db:
+            total = _count(db.execute("SELECT COUNT(*) AS count FROM models"))
+            rows = db.execute(
                 "SELECT * FROM models ORDER BY seq LIMIT %s OFFSET %s",
                 (limit, offset),
             ).fetchall()
@@ -209,25 +225,25 @@ class PostgresStore:
     def list_inferences(
         self, model_id: str, limit: int | None = None, offset: int = 0
     ) -> tuple[list[Inference], int] | None:
-        with self._lock:
-            if not self._conn.execute("SELECT 1 FROM models WHERE id = %s", (model_id,)).fetchone():
+        with self._connection() as db:
+            if not db.execute("SELECT 1 FROM models WHERE id = %s", (model_id,)).fetchone():
                 return None
             total = _count(
-                self._conn.execute(
+                db.execute(
                     "SELECT COUNT(*) AS count FROM inferences WHERE model_id = %s", (model_id,)
                 )
             )
-            rows = self._conn.execute(
+            rows = db.execute(
                 "SELECT * FROM inferences WHERE model_id = %s ORDER BY seq LIMIT %s OFFSET %s",
                 (model_id, limit, offset),
             ).fetchall()
         return [_inference(r) for r in rows], total
 
     def get_inference(self, model_id: str, inference_id: str) -> dict[str, Any]:
-        with self._lock:
-            if not self._conn.execute("SELECT 1 FROM models WHERE id = %s", (model_id,)).fetchone():
+        with self._connection() as db:
+            if not db.execute("SELECT 1 FROM models WHERE id = %s", (model_id,)).fetchone():
                 return {"modelFound": False}
-            row = self._conn.execute(
+            row = db.execute(
                 "SELECT * FROM inferences WHERE model_id = %s AND id = %s",
                 (model_id, inference_id),
             ).fetchone()
@@ -236,14 +252,14 @@ class PostgresStore:
     def ping(self) -> bool:
         """True if the database answers a trivial query (used by the readiness probe)."""
         try:
-            with self._lock:
-                self._conn.execute("SELECT 1").fetchone()
+            with self._connection() as db:
+                db.execute("SELECT 1").fetchone()
             return True
         except psycopg.Error:
             return False
 
     def stats(self) -> dict[str, int]:
-        with self._lock:
-            models = _count(self._conn.execute("SELECT COUNT(*) AS count FROM models"))
-            inferences = _count(self._conn.execute("SELECT COUNT(*) AS count FROM inferences"))
+        with self._connection() as db:
+            models = _count(db.execute("SELECT COUNT(*) AS count FROM models"))
+            inferences = _count(db.execute("SELECT COUNT(*) AS count FROM inferences"))
         return {"models": models, "inferences": inferences}

@@ -1,5 +1,9 @@
 # Contributing
 
+Primary maintainer: [Alisha Karma](https://github.com/codealisha99). Contact:
+[lishykarma99@gmail.com](mailto:lishykarma99@gmail.com). Contributions remain
+attributed to their authors; do not rewrite history to change ownership.
+
 Thanks for helping. The repository holds four implementations of one wire contract
 (see [ARCHITECTURE.md](ARCHITECTURE.md)); the Python port is the most complete.
 
@@ -16,6 +20,12 @@ pytest --cov                         # fails below 90% coverage
 ```
 
 Other ports: `make test-ts`, `make test-go`, `make test-rust`. CI runs all of them.
+
+For the website, run `npm ci`, `npm run build`, and `npm run test:ui` from the
+repository root. The browser suite uses installed Google Chrome and two isolated,
+in-memory Python servers; it never needs production database credentials. Run
+`uv run python -m pytest ../tests/test_frontend_build.py -q` from the Python
+directory to check the static documentation output and local deployment rewrites.
 
 ## Guidelines
 

@@ -27,7 +27,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [project.urls]
-Homepage = "https://alishakarma.com"
+Homepage = "https://github.com/codealisha99/ai-inference-layer"
 Repository = "https://github.com/codealisha99/ai-inference-layer"
 
 [project.scripts]

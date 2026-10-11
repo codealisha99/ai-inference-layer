@@ -145,3 +145,32 @@ def test_database_environment(monkeypatch):
     settings = Settings.from_env()
     assert settings.database_url == "postgresql://pooled"
     assert settings.database_url_unpooled == "postgresql://direct"
+
+
+def test_closed_connection_recovers_without_losing_history(store):
+    model = store.create_model("recovery", "embedding", {})
+    inference = store.run_inference(model["id"], "before disconnect")
+    store._conn.close()
+    assert store.ping()
+    assert store.get_model(model["id"]) == model
+    assert store.get_inference(model["id"], inference["id"])["inf"] == inference
+    store._conn.close()
+    assert store.run_inference(model["id"], "after disconnect") is not None
+    assert store.stats() == {"models": 1, "inferences": 2}
+
+
+def test_server_disconnection_recovers_on_next_request(store, database_url):
+    model = store.create_model("terminated-session", "embedding", {})
+    with psycopg.connect(database_url, autocommit=True) as admin:
+        admin.execute("SELECT pg_terminate_backend(%s)", (store._conn.info.backend_pid,))
+    with TestClient(build_app(store=store)) as client:
+        assert client.get("/health").status_code == 503
+        assert client.get("/readyz").status_code == 200
+        assert client.get(f"/models/{model['id']}").json()["data"] == model
+
+
+def test_explicit_shutdown_does_not_reconnect(store):
+    store.close()
+    assert not store.ping()
+    with pytest.raises(psycopg.OperationalError, match="store is closed"):
+        store.stats()
