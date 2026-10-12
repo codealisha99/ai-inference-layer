@@ -6,6 +6,19 @@ All notable changes are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Shared documentation shell and static build output for Swagger and ReDoc.
+- Browser 404 recovery, website CI, and browser/accessibility regression coverage.
+- PostgreSQL connection-recovery tests that preserve stored model and inference history.
+- Inference logo lockups and product branding assets.
+
+### Changed
+- Standardized primary author and maintainer contact metadata as Alisha Karma (`codealisha99`), preserving historical contributors and third-party notices.
+- PostgreSQL reconnects before a subsequent operation after a closed connection; failed writes are never automatically replayed.
+- Playground request credentials and inputs remain stable during submission; clipboard resets respect loading state.
+- Updated TypeScript dependencies to address the advisories found during the previous audit.
+- Clarified deterministic engine limitations, storage architecture, reproducible setup, and private security reporting.
+
 ## [0.2.0] - Python port
 
 ### Added

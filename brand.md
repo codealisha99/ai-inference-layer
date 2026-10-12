@@ -4,6 +4,32 @@ Inference is the web workbench for AI Inference Layer's model registry and deter
 
 The visual direction is restrained technical clarity: blue ink, cool neutral surfaces, local typography, compact layouts, and a dark response panel. No fabricated social proof, decorative gradients, or account features.
 
+## Logo and brand assets
+
+The convergence mark connects three input nodes to a single output arrow. It
+represents the three reference engines behind one API contract, rather than a
+generic processor or an unrelated AI symbol. The Inference wordmark uses outlined
+IBM Plex Sans Semibold letterforms from the bundled, licensed font.
+
+Assets live in `ai-inference-server-py/src/static/`:
+
+- `favicon.svg`: 32px mark, also suitable as a standalone app icon.
+- `logo.svg`: transparent light-surface wordmark used by the shared header and footer.
+- `logo-inverse.svg`: white wordmark for dark surfaces.
+- `social-card.svg`: editable 1200×630 vector social artwork.
+- `social-preview.png`: 1200×630 export referenced by Open Graph and large summary cards.
+
+Keep the mark's proportions intact, leave at least one input node's diameter as
+clear space around it, and retain the high-contrast blue/white treatment at small
+sizes. Use the supplied inverse lockup on dark surfaces. Product branding should
+say Inference; maintainer attribution belongs in credits and contact information.
+
+Regenerate the standalone SVG exports with `uv run scripts/build_brand_assets.py`.
+The script's pinned font tooling runs in an isolated environment and is not an
+application dependency. After editing the social artwork, export `social-card.svg`
+at exactly 1200×630 pixels to refresh `social-preview.png`. Font copyright/OFL
+notices remain in `src/static/fonts/`; no project-wide license is implied.
+
 ## Palette
 
 | Role | HEX |

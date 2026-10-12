@@ -2,7 +2,7 @@
 name = "ai-inference-server-rust"
 version = "0.1.0"
 edition = "2021"
-authors = ["Alisha Karma <https://alishakarma.com>"]
+authors = ["Alisha Karma <lishykarma99@gmail.com>"]
 homepage = "https://github.com/codealisha99/ai-inference-layer"
 repository = "https://github.com/codealisha99/ai-inference-layer"
 

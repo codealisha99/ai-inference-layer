@@ -3,6 +3,7 @@
 Primary maintainer: [Alisha Karma](https://github.com/codealisha99). Contact:
 [lishykarma99@gmail.com](mailto:lishykarma99@gmail.com). Contributions remain
 attributed to their authors; do not rewrite history to change ownership.
+See [OWNERSHIP.md](./OWNERSHIP.md) for the identity and attribution policy.
 
 Thanks for helping. The repository holds four implementations of one wire contract
 (see [ARCHITECTURE.md](ARCHITECTURE.md)); the Python port is the most complete.
@@ -10,14 +11,15 @@ Thanks for helping. The repository holds four implementations of one wire contra
 ## Setup and checks
 
 ```bash
-make build-py && make test-py        # or, inside ai-inference-server-py:
-python -m venv .venv && . .venv/bin/activate
-pip install -e ".[dev]"
-ruff check src tests                 # lint
-ruff format --check src tests        # formatting
-mypy                                 # strict type checking
-pytest --cov                         # fails below 90% coverage
+cd ai-inference-server-py
+uv sync --extra dev --locked
+uv run ruff check src tests
+uv run ruff format --check src tests
+uv run mypy
+uv run python -m pytest --cov         # fails below 90% coverage
 ```
+
+The pip-based `make build-py` and `make test-py` targets remain supported.
 
 Other ports: `make test-ts`, `make test-go`, `make test-rust`. CI runs all of them.
 

@@ -1,5 +1,9 @@
 FROM python:3.12-slim AS base
 
+LABEL org.opencontainers.image.title="AI Inference Layer — Python reference server" \
+    org.opencontainers.image.authors="Alisha Karma <lishykarma99@gmail.com>" \
+    org.opencontainers.image.source="https://github.com/codealisha99/ai-inference-layer"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1

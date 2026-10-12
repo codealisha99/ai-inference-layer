@@ -26,7 +26,7 @@ test-rust:
 	cd ai-inference-server-rust && cargo test
 
 test-py:
-	cd ai-inference-server-py && ruff check src tests && mypy && python -m pytest -v --cov
+	cd ai-inference-server-py && python -m ruff check src tests && python -m ruff format --check src tests && python -m mypy && python -m pytest -v --cov
 
 run-ts:
 	cd ai-inference-server-ts && npm start
