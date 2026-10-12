@@ -1,5 +1,10 @@
 # AI Inference Layer
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="ai-inference-server-py/src/static/logo-inverse.svg">
+  <img src="ai-inference-server-py/src/static/logo.svg" alt="Inference logo" width="288" height="64">
+</picture>
+
 Maintained by [Alisha Karma](https://alishakarma.com) ([codealisha99](https://github.com/codealisha99)). Historical contributors remain credited in Git history.
 
 A model registry and inference API implemented four times (TypeScript, Go, Rust, Python) behind one HTTP contract. Register a model, run inputs against it, read the history back. The Python port is the reference implementation and the most complete.
@@ -44,15 +49,18 @@ Model types: `text-generation`, `text-classification`, `embedding`. See [ARCHITE
 ## Quick start
 
 ```bash
-cd ai-inference-server-py && pip install -e ".[dev]"
-ais serve --db ./data/ai.db   # Python port with persistence; then in another terminal:
-ais demo                      # create sample models and run them (see the Python README)
-
-make run-py     # http://localhost:3000, interactive docs at /docs
-make run-ts
-make run-go
-make run-rust
+cd ai-inference-server-py
+uv sync --extra dev --locked
+uv run ais serve --db ./data/ai.db
 ```
+
+Open `http://localhost:3000/` for the playground and `/docs` for the interactive
+API reference. In another terminal, run `uv run ais demo` from the same directory
+to register sample models and create inference history. Python 3.12+ and
+[uv](https://docs.astral.sh/uv/) are required for these commands.
+
+The existing `make run-py`, `make run-ts`, `make run-go`, and `make run-rust`
+targets remain available after installing the corresponding implementation's dependencies.
 
 ## Build and test everything
 
@@ -67,3 +75,5 @@ make test
 - [CHANGELOG.md](./CHANGELOG.md): what changed and when
 - [CONTRIBUTING.md](./CONTRIBUTING.md): setup, checks and guidelines
 - [SECURITY.md](./SECURITY.md): reporting vulnerabilities and deployment guidance
+- [OWNERSHIP.md](./OWNERSHIP.md): primary author, maintainer contact, and attribution policy
+- [brand.md](./brand.md): logo assets, palette, typography, and brand usage

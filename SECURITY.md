@@ -2,13 +2,13 @@
 
 ## Reporting a vulnerability
 
-Please report suspected vulnerabilities privately through GitHub:
-**Security → Report a vulnerability** on this repository
-(<https://github.com/codealisha99/ai-inference-layer/security/advisories/new>).
-Do not open a public issue for security problems.
+Please report suspected vulnerabilities privately to the maintainer, Alisha Karma,
+at [lishykarma99@gmail.com](mailto:lishykarma99@gmail.com).
+Do not open a public issue for security problems. GitHub private vulnerability
+reporting is currently disabled, so the email address is the available reporting channel.
 
 Include the affected port (Python, TypeScript, Go or Rust), the version or commit, and steps to
-reproduce. You can expect an acknowledgement within a few days.
+reproduce. Avoid sending production credentials or private user data.
 
 ## Supported versions
 

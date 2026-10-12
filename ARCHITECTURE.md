@@ -1,4 +1,4 @@
-# AI Inference Server — Architecture
+# AI Inference Layer — Architecture
 
 ## Overview
 
@@ -8,12 +8,12 @@ inference history back. The same HTTP contract is implemented four times (TypeSc
 Python) so the ports can be compared and swapped behind one client.
 
 Inference is done by deterministic in-process engines rather than real model weights. That keeps
-the server dependency-free and its output reproducible, and the engine boundary is the single
+the engines lightweight and their output reproducible, and the engine boundary is the single
 place a real backend would plug in.
 
 The Python port (`ai-inference-server-py`) is the most complete: on top of the shared contract it
 adds batch inference, SSE streaming, pagination, Prometheus metrics, optional API-key auth,
-configurable limits and optional SQLite persistence. See its [README](./ai-inference-server-py/README.md).
+configurable limits and optional SQLite or PostgreSQL persistence. See its [README](./ai-inference-server-py/README.md).
 
 ## Component Diagram
 
@@ -23,7 +23,7 @@ graph TD
     subgraph Server
         Middleware[Middleware: auth, request id, access log, metrics]
         Middleware --> Routes[Routes + validation]
-        Routes --> Store[Store: memory or SQLite]
+        Routes --> Store[Store: memory, SQLite, or PostgreSQL]
         Store --> Engines[Engines]
         Routes --> Metrics[Metrics]
     end
@@ -67,7 +67,9 @@ sequenceDiagram
 
 ## Wire Contract (shared by all ports)
 
-Every response is `{"success": bool, "data": ..., "error": string | null}`.
+Every JSON API response is `{"success": bool, "data": ..., "error": string | null}`.
+HTML pages, browser 404 recovery, SSE streams, and Prometheus metrics use their
+documented content types instead.
 
 | Route | Success | Errors |
 |-------|---------|--------|
@@ -83,9 +85,11 @@ Every response is `{"success": bool, "data": ..., "error": string | null}`.
 | Decision | Rationale |
 |----------|-----------|
 | Deterministic engines instead of real models | No heavy dependencies, reproducible tests, and a clear seam (`run_engine`) for a real backend |
-| One response envelope everywhere, including 404/405/500 | Clients parse a single shape; no framework default error bodies leak through |
-| `Store` protocol with memory and SQLite backends | The HTTP layer never knows which one it has; memory is the zero-config default, SQLite (`DATABASE_PATH`) makes data durable |
+| One JSON envelope across Python API errors, including 404/405/500 | API clients parse a single shape; HTML pages and non-JSON endpoints retain their documented formats |
+| `Store` protocol with memory, SQLite, and PostgreSQL backends | The HTTP layer uses one contract; memory is the default, `DATABASE_PATH` selects SQLite, and `DATABASE_URL` selects PostgreSQL with precedence over SQLite |
 | SQLite with one shared connection behind a lock, WAL, transactional batches | Simple, safe for this workload, atomic batches, and fast reads that do not block on writers |
+| PostgreSQL transactions and advisory locks | Writes preserve name, capacity, and history limits across server processes; a direct URL can initialize the schema while a pooled URL handles application queries |
+| Reconnect a closed PostgreSQL connection before the next operation | Recover after a disconnect without replaying potentially committed writes; explicit store shutdown remains closed |
 | Versioned schema (`user_version`); newer schemas refused | Future migrations are possible and an old server cannot corrupt a newer database |
 | Bounded memory (model cap, per-model history cap) | An unauthenticated or runaway client cannot grow the process without limit |
 | Python extras are additive | New fields (`latencyMs`) and endpoints do not change existing responses, so other ports stay compatible |
@@ -100,7 +104,7 @@ Every response is `{"success": bool, "data": ..., "error": string | null}`.
 ## Known Limitations
 
 - Persistence is Python-only and opt-in; the TypeScript, Go and Rust ports keep state in memory.
-- Run a single worker per database file; with the in-memory store, several workers would each
+- Run a single worker per SQLite database file; with the in-memory store, several workers would each
   hold their own state.
 - `/health` and `/metrics` count rows on every call, which is fine at the default caps.
 - Auth is a single shared key, with no per-client keys. Rate limiting is per process, so with several workers each enforces its own budget.

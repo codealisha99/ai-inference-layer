@@ -1,5 +1,15 @@
 {
   "name": "ai-inference-layer-deployment",
+  "description": "Build and browser verification tools for AI Inference Layer",
+  "author": {
+    "name": "Alisha Karma",
+    "email": "lishykarma99@gmail.com",
+    "url": "https://alishakarma.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codealisha99/ai-inference-layer.git"
+  },
   "private": true,
   "type": "module",
   "scripts": {

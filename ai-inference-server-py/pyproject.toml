@@ -3,7 +3,7 @@ name = "ai-inference-server-py"
 version = "0.2.0"
 description = "AI Inference Server: model registry + inference API (Python port)"
 readme = "README.md"
-authors = [{ name = "Alisha Karma", email = "187989708+codealisha99@users.noreply.github.com" }]
+authors = [{ name = "Alisha Karma", email = "lishykarma99@gmail.com" }]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110",

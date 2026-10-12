@@ -14,8 +14,8 @@ The Python reference implementation runs in Railway using the root Dockerfile.
 readiness settings. Run `npm ci`, `railway config plan`, and
 `railway config apply --yes` when changing infrastructure. Secrets remain
 unmanaged by this configuration.
-Vercel builds the shared static interface with `scripts/build_frontend.py` and
-builds the playground, Swagger, and ReDoc with one shared shell. API requests and
+Vercel uses `scripts/build_frontend.py` to build the playground, Swagger, and ReDoc
+with one shared shell. API requests and
 the OAuth redirect route are forwarded to Railway. The app runs deterministic
 local engines; it does not call a hosted LLM provider.
 
