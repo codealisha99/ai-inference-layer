@@ -17,7 +17,7 @@
     "test:ui": "playwright test"
   },
   "dependencies": {
-    "railway": "^3.13.1"
+    "railway": "^3.15.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
