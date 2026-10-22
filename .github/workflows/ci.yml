@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: npm ci
@@ -99,7 +99,7 @@ jobs:
         working-directory: ai-inference-server-py
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
           cache: 'pip'
